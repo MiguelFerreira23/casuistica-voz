@@ -1,0 +1,8 @@
+# Nunca publicar ficheiros com dados de doentes
+*.xlsx
+*.xls
+*.csv
+!app/template.xlsx
+
+.claude/
+node_modules/
