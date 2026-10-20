@@ -193,3 +193,9 @@ details.more > summary::after { content: " ›"; color: var(--muted); }
 .err { color: var(--rec); }
 
 [hidden] { display: none !important; }
+
+/* Valores por omissão: tracejado, para se distinguirem dos deduzidos */
+.f.def input, .f.def select, .f.def textarea { border-style: dashed; border-color: color-mix(in srgb, var(--inf) 70%, transparent); }
+.f.def .dot { background: transparent; border: 1.5px dashed var(--inf); box-sizing: border-box; }
+.chip.def { border-style: dashed; border-color: var(--inf); }
+.legend .l-def::before { background: transparent; border: 1.5px dashed var(--inf); box-sizing: border-box; }

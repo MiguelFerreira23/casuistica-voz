@@ -1,5 +1,5 @@
 import { COLUMNS, SECTIONS, LISTS, COL_BY_KEY, emptyRecord, ageGroup, isoToPt, toTsvRow, todayIso } from './schema.js';
-import { parse, missingFields } from './parser.js';
+import { parse, missingFields, applyDefaults, DEFAULTS } from './parser.js';
 import { appendToWorkbook } from './xlsx.js';
 import { Recorder, transcribe, loadModel, onSttEvents, MODELS } from './stt.js';
 import { allRecords, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile } from './store.js';
@@ -45,7 +45,21 @@ function reparse() {
     state.origin.grupo = 'auto';
   }
   state.notes = res.notes;
+  withDefaults();
   updateForm();
+}
+
+// Valores por omissão (data de hoje, Urgência, caso não complexo): só num registo que já tem conteúdo.
+function withDefaults() {
+  const has = COLUMNS.some((c) => !(c.key in DEFAULTS) && state.values[c.key] !== '' && ['voz', 'man'].includes(state.origin[c.key]));
+  if (has) {
+    const v = {}, o = {};
+    for (const k of Object.keys(DEFAULTS)) if (!state.manual.has(k)) { v[k] = state.values[k]; }
+    applyDefaults(v, o);
+    for (const k of Object.keys(o)) { state.values[k] = v[k]; state.origin[k] = o[k]; }
+  } else {
+    for (const k of Object.keys(DEFAULTS)) if (!state.manual.has(k) && state.origin[k] === 'def') { state.values[k] = ''; state.origin[k] = ''; }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +104,7 @@ function buildForm() {
           state.values.grupo = ageGroup(Number(el.value.replace(',', '.')));
           state.origin.grupo = 'auto';
         }
+        withDefaults();
         updateForm(c.key);
       });
     }
@@ -97,7 +112,7 @@ function buildForm() {
   }
   const legend = document.createElement('div');
   legend.className = 'legend';
-  legend.innerHTML = '<span class="l-voz">dito</span><span class="l-inf">deduzido — confirma</span><span class="l-man">corrigido à mão</span>';
+  legend.innerHTML = '<span class="l-voz">dito</span><span class="l-inf">deduzido de outro dado</span><span class="l-def">por omissão — confirma</span><span class="l-man">escrito ou corrigido à mão</span>';
   form.appendChild(legend);
 }
 
@@ -132,12 +147,14 @@ function renderSummary() {
   const filled = COLUMNS.filter((c) => state.values[c.key] !== '');
   const voz = filled.filter((c) => state.origin[c.key] === 'voz').length;
   const inf = filled.filter((c) => ['inf', 'auto'].includes(state.origin[c.key])).length;
+  const def = filled.filter((c) => state.origin[c.key] === 'def').length;
   const man = filled.filter((c) => state.origin[c.key] === 'man').length;
   const miss = missingFields(state.values);
   const chips = [];
   if (voz) chips.push(`<span class="chip voz">${voz} ditos</span>`);
   if (inf) chips.push(`<span class="chip inf">${inf} deduzidos</span>`);
-  if (man) chips.push(`<span class="chip">${man} corrigidos</span>`);
+  if (def) chips.push(`<span class="chip def">${def} por omissão</span>`);
+  if (man) chips.push(`<span class="chip">${man} à mão</span>`);
   if (miss.length) chips.push(`<span class="chip miss">Falta: ${miss.join(', ')}</span>`);
   $('#summary').innerHTML = chips.join('');
   $('#notes').innerHTML = state.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('');

@@ -89,3 +89,18 @@ test('raqui, fora do bloco, só não é SO', () => {
   assert.equal(w.tec, 'Sedoanalgesia');
   assert.equal(w.destino, 'Enfermaria');
 });
+
+test('sem texto não há valores deduzidos nem por omissão', () => {
+  const { values, origin } = parse('', { today });
+  assert.deepEqual(Object.values(values).filter((x) => x !== ''), []);
+  assert.deepEqual(origin, {});
+});
+
+test('valores por omissão marcados como "def"', () => {
+  const { values: v, origin } = parse('idade 40, ortopedia', { today });
+  assert.equal(v.data, today);
+  assert.equal(origin.data, 'def');
+  assert.equal(origin.regime, 'def');
+  assert.equal(origin.complexo, 'def');
+  assert.equal(origin.grupo, 'auto');
+});

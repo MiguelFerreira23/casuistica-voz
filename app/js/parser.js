@@ -376,6 +376,8 @@ export function parse(text, opts = {}) {
   }
 
   inferDefaults(values, origin, { mon, ctxSeen, today }, notes);
+  // valores por omissão só quando o texto já trouxe alguma informação
+  if (Object.values(origin).includes('voz')) applyDefaults(values, origin, today);
   return { values, origin, notes, transcriptNormalized: pre };
 }
 
@@ -506,9 +508,7 @@ const MON_ORDER = ['BIS', 'TOF', 'PAI', 'PVC'];
 function inferDefaults(v, origin, { mon, ctxSeen, today }, notes) {
   const inf = (k, val) => { if (!v[k] && val) { v[k] = val; origin[k] = 'inf'; } };
 
-  inf('data', today);
   if (v.idade !== '' && !v.grupo) { v.grupo = ageGroup(v.idade); origin.grupo = 'auto'; }
-  inf('regime', 'Urgência');
   if (v.esp === 'Fora do Bloco') inf('local', 'Gastroenterologia');
 
   // Linha arterial / CVC sem local
@@ -548,7 +548,14 @@ function inferDefaults(v, origin, { mon, ctxSeen, today }, notes) {
   if (v.la) inf('laSuc', 'Sucesso');
   if (v.cvc) { inf('cvcMet', 'Ecoguiado'); inf('cvcSuc', 'Sucesso'); }
 
-  inf('complexo', 'Não');
+}
+
+// Valores por omissão (não vêm de nenhum dado; marcados "def" para o utilizador confirmar).
+// Só se aplicam a um registo que já tem conteúdo.
+export const DEFAULTS = { data: (today) => today, regime: () => 'Urgência', complexo: () => 'Não' };
+
+export function applyDefaults(v, origin, today = todayIso()) {
+  for (const [k, fn] of Object.entries(DEFAULTS)) if (!v[k]) { v[k] = fn(today); origin[k] = 'def'; }
 }
 
 // Campos obrigatórios em falta (a técnica não se aplica a Doente Crítico)

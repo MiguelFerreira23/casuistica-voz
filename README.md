@@ -88,9 +88,13 @@ Dicas:
   ("VA com ajuda"), como indicado nas Notas do Excel.
 - Podes gravar várias vezes; o texto acumula. Também podes escrever ou corrigir diretamente na caixa de texto.
 
-Cores dos campos: **verde** = dito; **amarelo** = deduzido (por exemplo, a data de hoje, o grupo etário
-ou "Balanceada" quando dizes só "geral"), por isso confirma; **azul** = corrigido à mão (já não é
-reescrito pelo texto).
+Cores dos campos:
+- **verde**: dito;
+- **amarelo**: deduzido de outro dado que disseste (por exemplo, o grupo etário a partir da idade, ou
+  "Intubação Orotraqueal" quando dizes "videolaringoscopia"), por isso confirma;
+- **tracejado**: valor por omissão (a data de hoje, "Urgência" e caso complexo "Não"). Só aparece
+  depois de começares a preencher o registo, e deves confirmá-lo;
+- **azul**: escrito ou corrigido à mão (já não é reescrito pelo texto).
 
 ## Outras exportações
 
