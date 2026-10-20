@@ -90,17 +90,18 @@ test('raqui, fora do bloco, só não é SO', () => {
   assert.equal(w.destino, 'Enfermaria');
 });
 
-test('sem texto não há valores deduzidos nem por omissão', () => {
-  const { values, origin } = parse('', { today });
-  assert.deepEqual(Object.values(values).filter((x) => x !== ''), []);
-  assert.deepEqual(origin, {});
+test('registo vazio: só as sugestões por omissão, cada uma com motivo', () => {
+  const { values, origin, why } = parse('', { today });
+  const filled = Object.entries(values).filter(([, x]) => x !== '').map(([k]) => k).sort();
+  assert.deepEqual(filled, ['complexo', 'data', 'regime']);
+  for (const k of filled) { assert.equal(origin[k], 'sug'); assert.ok(why[k]); }
 });
 
-test('valores por omissão marcados como "def"', () => {
-  const { values: v, origin } = parse('idade 40, ortopedia', { today });
-  assert.equal(v.data, today);
-  assert.equal(origin.data, 'def');
-  assert.equal(origin.regime, 'def');
-  assert.equal(origin.complexo, 'def');
-  assert.equal(origin.grupo, 'auto');
+test('todas as sugestões dizem de onde vieram', () => {
+  const { values: v, origin, why } = parse('idade 40, ortopedia, raqui, linha arterial, videolaringoscopia', { today });
+  assert.equal(origin.grupo, 'sug');
+  assert.match(why.grupo, /idade/);
+  assert.equal(v.tva, 'Intubação Orotraqueal');
+  assert.match(why.tva, /Videolaringosc/);
+  for (const [k, o] of Object.entries(origin)) if (o === 'sug') assert.ok(why[k], `sem motivo: ${k}`);
 });

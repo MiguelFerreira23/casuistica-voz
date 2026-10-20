@@ -88,13 +88,11 @@ Dicas:
   ("VA com ajuda"), como indicado nas Notas do Excel.
 - Podes gravar várias vezes; o texto acumula. Também podes escrever ou corrigir diretamente na caixa de texto.
 
-Cores dos campos:
-- **verde**: dito;
-- **amarelo**: deduzido de outro dado que disseste (por exemplo, o grupo etário a partir da idade, ou
-  "Intubação Orotraqueal" quando dizes "videolaringoscopia"), por isso confirma;
-- **tracejado**: valor por omissão (a data de hoje, "Urgência" e caso complexo "Não"). Só aparece
-  depois de começares a preencher o registo, e deves confirmá-lo;
-- **azul**: escrito ou corrigido à mão (já não é reescrito pelo texto).
+Cada campo mostra de onde veio o valor:
+- **Mencionado** (verde): foi dito ou escrito na caixa de texto.
+- **Sugerido** (amarelo): não foi dito, e por baixo do campo aparece o motivo. Por exemplo, "Data de
+  hoje", "Calculado a partir da idade (66)" ou "Por teres mencionado Videolaringoscópio". Confirma.
+- **Escrito à mão** (azul): preenchido ou corrigido no formulário; já não é reescrito pelo texto.
 
 ## Outras exportações
 

@@ -93,7 +93,8 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
 .chip { font-size: 13px; padding: 4px 10px; border-radius: 99px; background: var(--card); border: 1px solid var(--line); }
 .chip.voz { background: var(--voz-soft); border-color: transparent; }
-.chip.inf { background: var(--inf-soft); border-color: transparent; }
+.chip.sug { background: var(--inf-soft); border-color: transparent; }
+.chip.man { background: var(--man-soft); border-color: transparent; }
 .chip.miss { color: var(--miss); }
 .notes { margin: 6px 0; padding: 0; list-style: none; }
 .notes li { font-size: 13px; background: var(--inf-soft); padding: 8px 10px; border-radius: 10px; margin: 6px 0; }
@@ -112,8 +113,10 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .f label .dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; flex: none; }
 .f.voz input, .f.voz select, .f.voz textarea { border-color: color-mix(in srgb, var(--voz) 55%, transparent); background-color: var(--voz-soft); }
 .f.voz .dot { background: var(--voz); }
-.f.inf input, .f.inf select, .f.inf textarea, .f.auto input, .f.auto select { border-color: color-mix(in srgb, var(--inf) 60%, transparent); background-color: var(--inf-soft); }
-.f.inf .dot, .f.auto .dot { background: var(--inf); }
+.f.sug input, .f.sug select, .f.sug textarea { border-color: color-mix(in srgb, var(--inf) 60%, transparent); background-color: var(--inf-soft); }
+.f.sug .dot { background: var(--inf); }
+.f .why { font-size: 11.5px; line-height: 1.3; color: var(--inf); margin: 4px 2px 0; }
+.f .why:empty { display: none; }
 .f.man input, .f.man select, .f.man textarea { border-color: color-mix(in srgb, var(--man) 55%, transparent); background-color: var(--man-soft); }
 .f.man .dot { background: var(--man); }
 .f.missing label { color: var(--miss); }
@@ -122,7 +125,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin: 10px 2px 0; flex-wrap: wrap; }
 .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
 .legend .l-voz::before { background: var(--voz); }
-.legend .l-inf::before { background: var(--inf); }
+.legend .l-sug::before { background: var(--inf); }
 .legend .l-man::before { background: var(--man); }
 
 .actions {
@@ -194,8 +197,3 @@ details.more > summary::after { content: " ›"; color: var(--muted); }
 
 [hidden] { display: none !important; }
 
-/* Valores por omissão: tracejado, para se distinguirem dos deduzidos */
-.f.def input, .f.def select, .f.def textarea { border-style: dashed; border-color: color-mix(in srgb, var(--inf) 70%, transparent); }
-.f.def .dot { background: transparent; border: 1.5px dashed var(--inf); box-sizing: border-box; }
-.chip.def { border-style: dashed; border-color: var(--inf); }
-.legend .l-def::before { background: transparent; border: 1.5px dashed var(--inf); box-sizing: border-box; }

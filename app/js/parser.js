@@ -216,12 +216,14 @@ const cleanFree = (s) => s.replace(/^[\s,.;:–-]+/, '').replace(/[\s,;:–-]+$/
 /**
  * @param {string} text  texto ditado
  * @param {{today?: string}} opts  data de hoje em ISO (para testes)
- * @returns {{values: object, origin: object, notes: string[]}}
+ * @returns {{values: object, origin: object, why: object, notes: string[]}}
+ *   origin: 'voz' (mencionado) | 'sug' (sugerido, com o motivo em why)
  */
 export function parse(text, opts = {}) {
   const today = opts.today || todayIso();
   const values = Object.fromEntries(COLUMNS.map((c) => [c.key, '']));
   const origin = {};
+  const why = {};
   const notes = [];
   const set = (k, v, o = 'voz') => { values[k] = v; origin[k] = o; };
 
@@ -354,7 +356,7 @@ export function parse(text, opts = {}) {
   if (cond) {
     if (values.laring === 'Macintosh') set('laring', 'Macintosh + Condutor');
     else if (values.laring === 'Videolaringoscópio') set('laring', 'Videolaringoscópio + Condutor');
-    else if (!values.laring) set('laring', 'Macintosh + Condutor', 'inf');
+    else if (!values.laring) { set('laring', 'Macintosh + Condutor', 'sug'); why.laring = 'Foi mencionado condutor sem dizer o laringoscópio'; }
   }
 
   // observações automáticas ("VA com ajuda", "BSA não à primeira")
@@ -375,10 +377,9 @@ export function parse(text, opts = {}) {
     if (extra.length) set('compl', `${values.compl}, ${extra.join(', ')}`);
   }
 
-  inferDefaults(values, origin, { mon, ctxSeen, today }, notes);
-  // valores por omissão só quando o texto já trouxe alguma informação
-  if (Object.values(origin).includes('voz')) applyDefaults(values, origin, today);
-  return { values, origin, notes, transcriptNormalized: pre };
+  inferDefaults(values, origin, why, { mon, ctxSeen }, notes);
+  applyDefaults(values, origin, why, today);
+  return { values, origin, why, notes, transcriptNormalized: pre };
 }
 
 // ---------------------------------------------------------------------------
@@ -501,61 +502,69 @@ function extract(m, f, today) {
 }
 
 // ---------------------------------------------------------------------------
-// Valores deduzidos (marcados como "inf" para o utilizador confirmar)
+// Sugestões: valores que não foram ditos, cada um com o motivo (why) para o utilizador perceber
+// de onde veio. Origem "sug".
 
 const MON_ORDER = ['BIS', 'TOF', 'PAI', 'PVC'];
 
-function inferDefaults(v, origin, { mon, ctxSeen, today }, notes) {
-  const inf = (k, val) => { if (!v[k] && val) { v[k] = val; origin[k] = 'inf'; } };
+function inferDefaults(v, origin, why, { mon, ctxSeen }, notes) {
+  const sug = (k, val, reason) => { if (!v[k] && val) { v[k] = val; origin[k] = 'sug'; why[k] = reason; } };
 
-  if (v.idade !== '' && !v.grupo) { v.grupo = ageGroup(v.idade); origin.grupo = 'auto'; }
-  if (v.esp === 'Fora do Bloco') inf('local', 'Gastroenterologia');
+  if (v.idade !== '' && !v.grupo) sug('grupo', ageGroup(v.idade), `Calculado a partir da idade (${v.idade})`);
+  if (v.esp === 'Fora do Bloco') sug('local', 'Gastroenterologia', '“Fora do Bloco” é a Unidade de Técnicas de Gastroenterologia (Notas do Excel)');
 
   // Linha arterial / CVC sem local
-  if (ctxSeen.has('la') && !v.la && (v.laMet || v.laSuc || mon.has('PAI'))) inf('la', 'Não registado');
-  if (ctxSeen.has('cvc') && !v.cvc) inf('cvc', 'Não registado');
+  if (ctxSeen.has('la') && !v.la && (v.laMet || v.laSuc || mon.has('PAI'))) sug('la', 'Não registado', 'Foi mencionada linha arterial sem dizer o local');
+  if (ctxSeen.has('cvc') && !v.cvc) sug('cvc', 'Não registado', 'Foi mencionado CVC sem dizer o local');
 
   // Via aérea
-  if (!v.tecva && v.laring) inf('tecva', /^Video/.test(v.laring) ? 'Videolaringoscopia' : /^(Macintosh|McCoy)/.test(v.laring) ? 'Laringoscopia direta' : '');
-  if (!v.tva && (v.tecva || v.cl || /^(Macintosh|McCoy|Video)/.test(v.laring))) inf('tva', 'Intubação Orotraqueal');
+  if (!v.tecva && v.laring) sug('tecva', /^Video/.test(v.laring) ? 'Videolaringoscopia' : /^(Macintosh|McCoy)/.test(v.laring) ? 'Laringoscopia direta' : '', `Por teres mencionado ${v.laring}`);
+  if (!v.tva && (v.tecva || v.cl || /^(Macintosh|McCoy|Video)/.test(v.laring))) sug('tva', 'Intubação Orotraqueal', `Por teres mencionado ${v.tecva || v.laring || 'Cormack-Lehane'}`);
 
   // Técnica anestésica
-  const ga = v.ag || ['Intubação Orotraqueal', 'Intubação Nasotraqueal', 'Máscara Laríngea'].includes(v.tva);
-  const reg = v.neuro || v.bp1;
-  if (!v.tec) inf('tec', ga && reg ? 'Combinada' : ga ? 'Geral' : reg ? 'Regional' : '');
-  else if (v.tec === 'Geral' && reg && origin.tec === 'voz' && v.bpInt !== 'Analgésico' && v.neuroInt !== 'Analgésico') notes.push('Técnica "Geral" com técnica regional: confirma se não é "Combinada".');
-  if (['Geral', 'Combinada'].includes(v.tec)) inf('ag', 'Balanceada');
+  const gaWhy = v.ag ? `anestesia ${v.ag.toLowerCase()}` : ['Intubação Orotraqueal', 'Intubação Nasotraqueal', 'Máscara Laríngea'].includes(v.tva) ? v.tva : '';
+  const regWhy = [v.neuro, v.bp1].filter(Boolean).join(' e ');
+  if (!v.tec) sug('tec', gaWhy && regWhy ? 'Combinada' : gaWhy ? 'Geral' : regWhy ? 'Regional' : '', `Por haver ${[gaWhy, regWhy].filter(Boolean).join(" + ")}`);
+  else if (v.tec === 'Geral' && regWhy && origin.tec === 'voz' && v.bpInt !== 'Analgésico' && v.neuroInt !== 'Analgésico') notes.push('Técnica "Geral" com técnica regional: confirma se não é "Combinada".');
+  if (['Geral', 'Combinada'].includes(v.tec)) sug('ag', 'Balanceada', 'A anestesia geral mais habitual; não foi dito o tipo');
 
   // Monitorização
-  if (v.la && v.la !== '' && !mon.has('PAI')) mon.add('PAI*');
+  if (v.la && !mon.has('PAI')) mon.add('PAI*');
   const flags = MON_ORDER.filter((x) => mon.has(x) || mon.has(x + '*'));
   if (flags.length || mon.has('ASA') || v.tec) {
     const val = ['ASA', ...flags].join(' + ');
-    const deduced = !mon.size || [...mon].every((x) => x.endsWith('*'));
+    const said = [...mon].filter((x) => !x.endsWith('*'));
     v.monit = val;
-    origin.monit = deduced ? 'inf' : 'voz';
+    if (said.length && said.length === [...mon].length) origin.monit = 'voz';
+    else {
+      origin.monit = 'sug';
+      why.monit = said.length ? 'Acrescentado PAI por haver linha arterial' : mon.has('PAI*') ? 'ASA (standard) + PAI por haver linha arterial' : 'Monitorização standard ASA; não foi dita outra';
+    }
     if (!LISTS.monit.includes(val)) notes.push(`A monitorização "${val}" não existe na lista do Excel; escolhe a mais próxima.`);
   }
 
-  // Neuroeixo / bloqueios
+  // Neuroeixo / bloqueios / dispositivos: método e sucesso habituais quando não ditos
+  const usual = 'Não foi dito; é o mais habitual';
   if (v.neuro) {
-    inf('neuroMet', 'Referências Anatómicas');
-    inf('neuroInt', v.neuro === 'Bloqueio Subaracnoideu' ? 'Anestésico' : '');
-    inf('neuroSuc', 'Sucesso');
+    sug('neuroMet', 'Referências Anatómicas', usual);
+    sug('neuroInt', v.neuro === 'Bloqueio Subaracnoideu' ? 'Anestésico' : '', 'Raquianestesia é normalmente com intuito anestésico');
+    sug('neuroSuc', 'Sucesso', 'Não foi dito insucesso');
   }
-  if (v.bp1) { inf('bpMet', 'Ecoguiado'); inf('bpSuc', 'Sucesso'); }
-  if (['Máscara Laríngea', 'Intubação Orotraqueal', 'Intubação Nasotraqueal'].includes(v.tva)) inf('sucva', 'Sucesso');
-  if (v.la) inf('laSuc', 'Sucesso');
-  if (v.cvc) { inf('cvcMet', 'Ecoguiado'); inf('cvcSuc', 'Sucesso'); }
-
+  if (v.bp1) { sug('bpMet', 'Ecoguiado', usual); sug('bpSuc', 'Sucesso', 'Não foi dito insucesso'); }
+  if (['Máscara Laríngea', 'Intubação Orotraqueal', 'Intubação Nasotraqueal'].includes(v.tva)) sug('sucva', 'Sucesso', 'Não foi dito insucesso');
+  if (v.la) sug('laSuc', 'Sucesso', 'Não foi dito insucesso');
+  if (v.cvc) { sug('cvcMet', 'Ecoguiado', usual); sug('cvcSuc', 'Sucesso', 'Não foi dito insucesso'); }
 }
 
-// Valores por omissão (não vêm de nenhum dado; marcados "def" para o utilizador confirmar).
-// Só se aplicam a um registo que já tem conteúdo.
-export const DEFAULTS = { data: (today) => today, regime: () => 'Urgência', complexo: () => 'Não' };
+// Valores por omissão: aparecem logo num registo novo, como sugestão.
+export const DEFAULTS = {
+  data: { value: (today) => today, why: 'Data de hoje' },
+  regime: { value: () => 'Urgência', why: 'Esta casuística é de urgência' },
+  complexo: { value: () => 'Não', why: 'Por omissão; diz “caso complexo” para mudar' },
+};
 
-export function applyDefaults(v, origin, today = todayIso()) {
-  for (const [k, fn] of Object.entries(DEFAULTS)) if (!v[k]) { v[k] = fn(today); origin[k] = 'def'; }
+export function applyDefaults(v, origin, why, today = todayIso()) {
+  for (const [k, d] of Object.entries(DEFAULTS)) if (!v[k]) { v[k] = d.value(today); origin[k] = 'sug'; why[k] = d.why; }
 }
 
 // Campos obrigatórios em falta (a técnica não se aplica a Doente Crítico)

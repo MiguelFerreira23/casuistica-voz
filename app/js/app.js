@@ -1,5 +1,5 @@
 import { COLUMNS, SECTIONS, LISTS, COL_BY_KEY, emptyRecord, ageGroup, isoToPt, toTsvRow, todayIso } from './schema.js';
-import { parse, missingFields, applyDefaults, DEFAULTS } from './parser.js';
+import { parse, missingFields } from './parser.js';
 import { appendToWorkbook } from './xlsx.js';
 import { Recorder, transcribe, loadModel, onSttEvents, MODELS } from './stt.js';
 import { allRecords, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile } from './store.js';
@@ -18,13 +18,14 @@ const state = {
   sync: null,
   values: emptyRecord(),
   origin: {},
+  why: {},
   manual: new Set(),
   notes: [],
   dirty: false,
 };
 
 function resetState() {
-  Object.assign(state, { id: null, createdAt: null, exportedAt: null, sync: null, values: emptyRecord(), origin: {}, manual: new Set(), notes: [], dirty: false });
+  Object.assign(state, { id: null, createdAt: null, exportedAt: null, sync: null, values: emptyRecord(), origin: {}, why: {}, manual: new Set(), notes: [], dirty: false });
   $('#transcript').value = '';
   reparse();
   $('#btn-delete').hidden = true;
@@ -38,28 +39,20 @@ function reparse() {
     if (state.manual.has(c.key)) continue;
     state.values[c.key] = res.values[c.key] ?? '';
     state.origin[c.key] = res.origin[c.key] || '';
+    state.why[c.key] = res.why[c.key] || '';
   }
-  // grupo etário segue a idade, mesmo que a idade tenha sido corrigida à mão
-  if (!state.manual.has('grupo') && state.values.idade !== '') {
-    state.values.grupo = ageGroup(Number(String(state.values.idade).replace(',', '.')));
-    state.origin.grupo = 'auto';
-  }
+  syncAgeGroup();
   state.notes = res.notes;
-  withDefaults();
   updateForm();
 }
 
-// Valores por omissão (data de hoje, Urgência, caso não complexo): só num registo que já tem conteúdo.
-function withDefaults() {
-  const has = COLUMNS.some((c) => !(c.key in DEFAULTS) && state.values[c.key] !== '' && ['voz', 'man'].includes(state.origin[c.key]));
-  if (has) {
-    const v = {}, o = {};
-    for (const k of Object.keys(DEFAULTS)) if (!state.manual.has(k)) { v[k] = state.values[k]; }
-    applyDefaults(v, o);
-    for (const k of Object.keys(o)) { state.values[k] = v[k]; state.origin[k] = o[k]; }
-  } else {
-    for (const k of Object.keys(DEFAULTS)) if (!state.manual.has(k) && state.origin[k] === 'def') { state.values[k] = ''; state.origin[k] = ''; }
-  }
+// O grupo etário segue a idade, mesmo que a idade tenha sido escrita à mão.
+function syncAgeGroup() {
+  if (state.manual.has('grupo') || state.values.idade === '') return;
+  const idade = Number(String(state.values.idade).replace(',', '.'));
+  state.values.grupo = ageGroup(idade);
+  state.origin.grupo = 'sug';
+  state.why.grupo = `Calculado a partir da idade (${state.values.idade})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +85,7 @@ function buildForm() {
       } else {
         ctl = `<input id="${id}" type="text"${c.inputmode ? ` inputmode="${c.inputmode}"` : ''}>`;
       }
-      w.innerHTML = `<label for="${id}"><span class="dot"></span>${c.label}</label>${ctl}`;
+      w.innerHTML = `<label for="${id}"><span class="dot"></span>${c.label}</label>${ctl}<div class="why"></div>`;
       box.appendChild(w);
       const el = $('#' + id, w);
       el.addEventListener(c.type === 'list' || c.type === 'date' ? 'change' : 'input', () => {
@@ -100,11 +93,8 @@ function buildForm() {
         state.origin[c.key] = 'man';
         state.manual.add(c.key);
         state.dirty = true;
-        if (c.key === 'idade' && !state.manual.has('grupo')) {
-          state.values.grupo = ageGroup(Number(el.value.replace(',', '.')));
-          state.origin.grupo = 'auto';
-        }
-        withDefaults();
+        state.why[c.key] = '';
+        if (c.key === 'idade') syncAgeGroup();
         updateForm(c.key);
       });
     }
@@ -112,7 +102,7 @@ function buildForm() {
   }
   const legend = document.createElement('div');
   legend.className = 'legend';
-  legend.innerHTML = '<span class="l-voz">dito</span><span class="l-inf">deduzido de outro dado</span><span class="l-def">por omissão — confirma</span><span class="l-man">escrito ou corrigido à mão</span>';
+  legend.innerHTML = '<span class="l-voz">Mencionado</span><span class="l-sug">Sugerido (o motivo aparece por baixo)</span><span class="l-man">Escrito à mão</span>';
   form.appendChild(legend);
 }
 
@@ -129,9 +119,10 @@ function updateForm(skipKey) {
       }
       if (el.value !== String(v)) el.value = v;
     }
-    w.classList.remove('voz', 'inf', 'auto', 'man', 'missing');
+    w.classList.remove('voz', 'sug', 'man', 'missing');
     const o = state.origin[c.key];
     if (v !== '' && o) w.classList.add(o);
+    $('.why', w).textContent = v !== '' && o === 'sug' ? state.why[c.key] || '' : '';
     if (c.required && v === '') w.classList.add('missing');
   }
   for (const d of $$('.section')) {
@@ -146,15 +137,13 @@ function updateForm(skipKey) {
 function renderSummary() {
   const filled = COLUMNS.filter((c) => state.values[c.key] !== '');
   const voz = filled.filter((c) => state.origin[c.key] === 'voz').length;
-  const inf = filled.filter((c) => ['inf', 'auto'].includes(state.origin[c.key])).length;
-  const def = filled.filter((c) => state.origin[c.key] === 'def').length;
+  const sug = filled.filter((c) => state.origin[c.key] === 'sug').length;
   const man = filled.filter((c) => state.origin[c.key] === 'man').length;
   const miss = missingFields(state.values);
   const chips = [];
-  if (voz) chips.push(`<span class="chip voz">${voz} ditos</span>`);
-  if (inf) chips.push(`<span class="chip inf">${inf} deduzidos</span>`);
-  if (def) chips.push(`<span class="chip def">${def} por omissão</span>`);
-  if (man) chips.push(`<span class="chip">${man} à mão</span>`);
+  if (voz) chips.push(`<span class="chip voz">${voz} mencionados</span>`);
+  if (sug) chips.push(`<span class="chip sug">${sug} sugeridos</span>`);
+  if (man) chips.push(`<span class="chip man">${man} escritos à mão</span>`);
   if (miss.length) chips.push(`<span class="chip miss">Falta: ${miss.join(', ')}</span>`);
   $('#summary').innerHTML = chips.join('');
   $('#notes').innerHTML = state.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('');
@@ -249,6 +238,7 @@ async function save() {
     sync: mode() === 'sheets' ? { ...(state.sync || {}), state: 'pending' } : state.sync,
     values: { ...state.values },
     origin: { ...state.origin },
+    why: { ...state.why },
     manual: [...state.manual],
     transcript: $('#transcript').value,
   };
@@ -298,7 +288,7 @@ async function syncPending(silent) {
 function edit(rec) {
   Object.assign(state, {
     id: rec.id, createdAt: rec.createdAt, exportedAt: rec.exportedAt, sync: rec.sync || null,
-    values: { ...emptyRecord(), ...rec.values }, origin: { ...rec.origin },
+    values: { ...emptyRecord(), ...rec.values }, origin: Object.fromEntries(Object.entries(rec.origin || {}).map(([k, o]) => [k, ['inf', 'auto', 'def'].includes(o) ? 'sug' : o])), why: { ...(rec.why || {}) },
     manual: new Set(COLUMNS.map((c) => c.key)), // ao editar, nada é reescrito pelo texto
     notes: [], dirty: false,
   });
