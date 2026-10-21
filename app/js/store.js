@@ -3,14 +3,16 @@
 const DB = 'casuistica';
 const STORE = 'records';
 const FILES = 'files';
+const AUDIO = 'audio';
 
 function open() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 2);
+    const req = indexedDB.open(DB, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(FILES)) db.createObjectStore(FILES);
+      if (!db.objectStoreNames.contains(AUDIO)) db.createObjectStore(AUDIO, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -36,6 +38,17 @@ export const clearAll = () => tx('readwrite', (s) => s.clear());
 export const getBaseFile = async (profileId) => (await tx('readonly', (s) => s.get('base:' + profileId), FILES)) || (profileId === 'p1' ? tx('readonly', (s) => s.get('base'), FILES) : undefined);
 export const setBaseFile = (profileId, f) => tx('readwrite', (s) => { s.delete('base'); return s.put(f, 'base:' + profileId); }, FILES);
 export const clearBaseFile = (profileId) => tx('readwrite', (s) => { s.delete('base'); return s.delete('base:' + profileId); }, FILES);
+
+// Gravações de áudio: { id, ownerId (registo ou rascunho), createdAt, mime, data (ArrayBuffer), seconds, status, transcript }
+// Guardadas como ArrayBuffer (mais fiável que Blob no IndexedDB do Safari).
+export const putAudio = (a) => tx('readwrite', (s) => s.put(a), AUDIO);
+export const allAudios = async () => (await tx('readonly', (s) => s.getAll(), AUDIO)).sort((a, b) => b.createdAt - a.createdAt);
+export const audiosOf = async (ownerId) => (await allAudios()).filter((a) => a.ownerId === ownerId).sort((a, b) => a.createdAt - b.createdAt);
+export const deleteAudio = (id) => tx('readwrite', (s) => s.delete(id), AUDIO);
+export const clearAudios = () => tx('readwrite', (s) => s.clear(), AUDIO);
+export async function moveAudios(fromOwner, toOwner) {
+  for (const a of await audiosOf(fromOwner)) await putAudio({ ...a, ownerId: toOwner });
+}
 
 export const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
 

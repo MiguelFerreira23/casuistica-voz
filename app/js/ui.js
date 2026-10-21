@@ -31,7 +31,7 @@ export function sheet({ title, html = '', buttons = [{ label: 'OK', value: true,
 export async function editNote({ label, note, presets }) {
   return sheet({
     title: `Nota: ${label}`,
-    html: `<p class="muted small">A nota vai para a célula do Excel (comentário) ou do Google Sheets. Serve para explicar um valor ou um campo vazio.</p>
+    html: `<p class="muted small">Vai para a célula do Excel (comentário) ou do Google Sheets. Serve para explicar um valor ou um campo vazio.</p>
       <div class="chips">${presets.map((p) => `<button type="button" class="chip-btn">${esc(p)}</button>`).join('')}</div>
       <textarea id="note-text" rows="3" placeholder="Escreve a nota…">${esc(note || '')}</textarea>`,
     buttons: [
@@ -54,11 +54,11 @@ const STEPS = [
     title: 'Casuística por voz',
     html: `<p>Regista cada doente a <b>falar</b>, e a app preenche sozinha a linha da casuística.</p>
       <p>No fim exportas para o <b>Excel</b> ou envias para o <b>Google Sheets</b>.</p>
-      <p class="hint">🔒 A gravação, a transcrição e a interpretação correm <b>só neste telemóvel</b>. Nada é enviado para servidores.</p>`,
+      <p class="note"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg><span>A gravação, a transcrição e a interpretação correm só neste telemóvel. As gravações ficam guardadas aqui, para as poderes ouvir mais tarde.</span></p>`,
   },
   {
     title: '1. Dita o caso',
-    html: `<p>Toca no <span class="pill rec">●</span> e diz o que fizeste, pela ordem que quiseres:</p>
+    html: `<p>Toca no botão vermelho e diz o que fizeste, pela ordem que quiseres:</p>
       <blockquote>“Processo 1234567, 66 anos, masculino, ASA 4. Cirurgia vascular. Diagnóstico hematoma inguinal. Procedimento drenagem. Duas horas. Geral balanceada, máscara laríngea. Destino UCPA.”</blockquote>
       <ul><li>Para <b>diagnóstico</b>, <b>procedimento</b>, <b>observações</b> e <b>complicações</b>, diz a palavra antes do texto.</li>
       <li>Podes gravar várias vezes: o texto acumula.</li>
@@ -67,11 +67,11 @@ const STEPS = [
   {
     title: '2. Revê o formulário',
     html: `<p>Cada campo mostra de onde veio o valor:</p>
-      <ul class="legend-list"><li><span class="sw voz"></span><b>Mencionado</b>: foi dito</li>
-      <li><span class="sw sug"></span><b>Sugerido</b>: não foi dito, e o motivo aparece por baixo (ex.: “Data de hoje”)</li>
-      <li><span class="sw man"></span><b>Escrito à mão</b>: preenchido ou corrigido por ti</li></ul>
-      <p>Os campos com <b>*</b> são obrigatórios; escolhes quais em <b>Definições</b>.</p>
-      <p>Se um dado não foi registado, toca em <b>📝</b> e deixa uma nota (ex.: “Método não registado”). A nota vai para a célula do Excel ou do Sheets.</p>`,
+      <ul class="legend-list"><li><i class="dot voz"></i><span><b>Mencionado</b>: foi dito</span></li>
+      <li><i class="dot sug"></i><span><b>Sugerido</b>: não foi dito; o motivo aparece por baixo</span></li>
+      <li><i class="dot man"></i><span><b>Escrito à mão</b>: preenchido ou corrigido por ti</span></li></ul>
+      <p>Os campos com <b>*</b> são obrigatórios; escolhes quais em Definições.</p>
+      <p>Antes de guardar vês um resumo. Se faltar um dado, podes deixar uma nota na célula, como “Método não registado”.</p>`,
   },
   {
     title: '3. Onde ficam os registos',
@@ -84,9 +84,9 @@ const STEPS = [
   {
     title: 'Pronto',
     html: `<p>Antes do primeiro ditado, descarrega o <b>modelo de voz</b> (cerca de 80 MB, de preferência com Wi-Fi). Só é preciso uma vez.</p>
-      <button type="button" class="btn block" id="guide-model">Descarregar modelo de voz agora</button>
+      <button type="button" class="btn block" id="guide-model">Descarregar o modelo de voz</button>
       <p class="muted small" id="guide-model-status"></p>
-      <p class="hint">💾 Os registos ficam guardados neste browser. Exporta ou faz uma cópia de segurança com regularidade.</p>`,
+      <p class="muted small">Os registos e as gravações ficam neste browser. Exporta ou faz uma cópia de segurança com regularidade.</p>`,
   },
 ];
 
@@ -97,8 +97,8 @@ export function showGuide({ mode, onMode, onLoadModel, onDone }) {
   document.body.appendChild(wrap);
   const render = () => {
     const s = STEPS[i];
-    wrap.innerHTML = `<div class="guide-card" role="dialog" aria-modal="true" aria-label="Guia">
-      <button class="guide-skip" type="button">Saltar</button>
+    wrap.innerHTML = `<div class="guide-top"><button class="guide-skip" type="button">${i === STEPS.length - 1 ? '' : 'Saltar'}</button></div>
+      <div class="guide-card" role="dialog" aria-modal="true" aria-label="Guia">
       <h2>${s.title}</h2><div class="guide-body">${s.html}</div>
       <div class="guide-dots">${STEPS.map((_, k) => `<span class="${k === i ? 'on' : ''}"></span>`).join('')}</div>
       <div class="guide-nav">
@@ -118,7 +118,7 @@ export function showGuide({ mode, onMode, onLoadModel, onDone }) {
       mb.disabled = true;
       const st = wrap.querySelector('#guide-model-status');
       st.textContent = 'A descarregar… podes continuar, termina em segundo plano.';
-      try { await onLoadModel(); st.textContent = '✓ Modelo pronto.'; } catch (e) { st.textContent = 'Erro: ' + e.message; mb.disabled = false; }
+      try { await onLoadModel(); st.textContent = 'Modelo pronto.'; } catch (e) { st.textContent = 'Erro: ' + e.message; mb.disabled = false; }
     };
   };
   function finish() { wrap.remove(); onDone(mode); }

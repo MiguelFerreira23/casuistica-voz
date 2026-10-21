@@ -59,24 +59,53 @@ correções aparecem logo.
 Cada registo guardado é logo enviado para a Google Sheet, com as notas das células. Se editares um
 registo, a mesma linha é atualizada. Sem rede, o registo fica "por enviar" e segue mais tarde.
 
-Configuração (uma vez). O repositório não tem links nem segredos, porque tudo se configura na app:
-1. Em <https://script.google.com> (na tua conta), cria um **Novo projeto** e cola
-   `google-apps-script/Code.gs` **tal como está**, sem preencher nada.
-2. **Implementar → Nova implementação → Aplicação Web**, com "Executar como: **Eu**" e
-   "Quem tem acesso: **Qualquer pessoa**". Autoriza e copia o URL que termina em `/exec`.
-3. Na app, em **Definições → Google Sheets**, cola:
-   - o **link da Google Sheet** (o separador é reconhecido pelo `gid` do link);
-   - o **URL `/exec`**;
-   - um **token** à tua escolha, com pelo menos 8 caracteres.
-4. Carrega em **Testar ligação**. O primeiro token usado fica gravado no script; a partir daí só são
-   aceites pedidos com esse token. O teste também confirma que as 40 colunas coincidem.
+Configuração (uma vez, no computador). Os passos ilustrados com prints estão na própria app, em
+**Definições → Google Sheets → Como configurar**:
+1. Em <https://script.google.com>, cria um **Novo projeto** e cola `google-apps-script/Code.gs` tal como está.
+2. **Implementar → Nova implementação → App para a Web**, com "Executar como: **Eu**" e
+   "Quem tem acesso: **Qualquer pessoa**".
+3. Clica em **Autorizar acesso**. No aviso "A Google não validou esta app", escolhe **Avançadas → Aceder**
+   e depois **Permitir**.
+4. No iPhone, abre **Definições → Google Sheets** e preenche:
+   - o link da folha;
+   - o URL `/exec`;
+   - um token, com **Gerar um token forte**.
 
-O link da folha, o URL e o token ficam guardados só no iPhone. Para mudar o token: no editor do
-Apps Script, abre **Definições do projeto → Propriedades do script**, apaga `TOKEN` e testa de novo
-com o token novo.
+   Depois clica em **Testar ligação**.
 
-O script só escreve nas colunas A..AN da folha da casuística (e acrescenta uma linha em
-"Casos Complexos" quando "Caso complexo = Sim"); não altera nem apaga mais nada.
+**Porquê "Qualquer pessoa" e se é seguro.** Este nome só quer dizer que qualquer pessoa pode *chamar*
+o endereço do script; ninguém fica a ver a folha. É necessário porque o iPhone fala com o script sem a
+sessão Google (o Safari bloqueia esses cookies entre sites). A segurança vem do script:
+- o URL é longo e aleatório;
+- só aceita pedidos com o **token**, e o primeiro token testado fica gravado;
+- só escreve nas **folhas autorizadas**: a primeira testada fica gravada em `SHEETS`, e outras
+  acrescentam-se à mão nas Propriedades do script;
+- só acrescenta ou atualiza linhas e notas: nunca apaga e não devolve dados das linhas;
+- tudo vai por HTTPS.
+
+## Gravações
+
+Cada ditado fica guardado no iPhone **logo que paras de gravar, antes da transcrição**. Se a transcrição
+falhar ou estiver errada, a gravação continua disponível para ouvir e transcrever à mão.
+
+Nos registos, as gravações aparecem por baixo do texto. Em cada uma podes:
+- **ouvir**;
+- **transcrever de novo**;
+- **partilhar** (para guardar em Ficheiros, por exemplo);
+- **apagar**.
+
+Ditados de registos que nunca chegaram a ser guardados aparecem em **Registos → Gravações sem registo**.
+Daí podes juntá-los ao registo que estás a criar.
+
+## Confirmar antes de guardar
+
+**Rever e guardar** mostra um resumo de tudo o que vai ser escrito:
+- o destino (Excel ou Google Sheets);
+- cada campo, com os valores sugeridos destacados;
+- as notas;
+- os obrigatórios em falta, com a opção de lhes juntar "… não registado".
+
+Só depois de **Confirmar** é que o registo é guardado ou enviado.
 
 ## Campos obrigatórios e notas
 

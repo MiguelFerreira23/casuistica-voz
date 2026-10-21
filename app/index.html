@@ -7,8 +7,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Casuística">
-  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#111317" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <title>Casuística</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -18,167 +18,189 @@
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
+  <!-- Ícones (traço único, 1.75) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8.5 5.5v13M15.5 5.5v13"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18.5" cy="12" r="1"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4.5h14v10l-5 5H5z"/><path d="M14 19.5v-5h5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></symbol>
+  </svg>
+
   <header class="topbar">
-    <h1 id="title">Novo registo</h1>
-    <button id="profile-chip" class="profile-chip" type="button" title="Destino ativo"></button>
+    <div class="titles">
+      <h1 id="title">Novo registo</h1>
+      <button id="profile-chip" class="dest" type="button"></button>
+    </div>
   </header>
 
   <main>
     <!-- NOVO / EDITAR -->
     <section id="view-new" class="view active">
-      <div class="card dictation">
-        <button id="rec" class="rec-btn" aria-label="Gravar">
-          <span class="rec-ring"></span>
-          <svg viewBox="0 0 24 24" class="mic"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>
+      <div class="dictation">
+        <button id="rec" class="rec-btn" type="button" aria-label="Gravar">
+          <svg class="ic"><use href="#i-mic"/></svg>
         </button>
         <div class="rec-info">
           <div id="rec-status" class="rec-status">Toca para ditar o caso</div>
-          <div id="rec-sub" class="rec-sub">Ex.: “Processo 1234567, 66 anos, masculino, ASA 4, cirurgia vascular…”</div>
+          <div id="rec-sub" class="rec-sub">“Processo 1234567, 66 anos, masculino, ASA 4, cirurgia vascular…”</div>
           <div id="progress" class="progress" hidden><div></div></div>
         </div>
       </div>
 
-      <label class="field-label" for="transcript">Texto (ditado ou escrito)</label>
-      <textarea id="transcript" rows="4" placeholder="Também podes escrever aqui, ou usar o microfone do teclado. O formulário atualiza-se sozinho."></textarea>
+      <div class="group">
+        <label class="group-h" for="transcript">Texto ditado ou escrito</label>
+        <div class="cells">
+          <textarea id="transcript" class="transcript" rows="4" placeholder="Também podes escrever aqui ou usar o microfone do teclado. O formulário atualiza-se sozinho."></textarea>
+          <div id="audios" class="audios" hidden></div>
+        </div>
+      </div>
 
-      <div id="summary" class="summary"></div>
+      <div id="summary" class="summary" aria-live="polite"></div>
       <ul id="notes" class="notes"></ul>
 
       <form id="form" autocomplete="off"></form>
 
       <div class="actions">
-        <button id="btn-clear" class="btn ghost" type="button">Limpar</button>
-        <button id="btn-delete" class="btn danger" type="button" hidden>Apagar</button>
-        <button id="btn-save" class="btn primary" type="button">Guardar registo</button>
+        <button id="btn-clear" class="btn text" type="button">Limpar</button>
+        <button id="btn-delete" class="btn text danger" type="button" hidden>Apagar</button>
+        <button id="btn-save" class="btn primary" type="button">Rever e guardar</button>
       </div>
     </section>
 
     <!-- REGISTOS -->
     <section id="view-list" class="view">
-      <div class="list-tools">
-        <input id="search" type="search" placeholder="Procurar (NP, procedimento, especialidade…)">
-      </div>
+      <input id="search" class="search" type="search" placeholder="Procurar por NP, procedimento, especialidade" aria-label="Procurar registos">
+      <div id="orphans" class="group" hidden></div>
       <div id="list"></div>
     </section>
 
     <!-- EXPORTAR -->
     <section id="view-export" class="view">
-      <div class="card" id="card-sheets">
-        <h2>Google Sheets</h2>
-        <p id="sync-status" class="muted"></p>
-        <button id="btn-sync" class="btn primary block">Enviar pendentes</button>
-        <button id="btn-sync-old" class="btn block" hidden></button>
-        <p class="muted small">Cada registo é enviado ao guardar. Se não houver rede, fica pendente e é reenviado depois. Editar um registo já enviado atualiza a mesma linha.</p>
+      <div class="group" id="card-sheets">
+        <div class="group-h">Google Sheets</div>
+        <div class="cells">
+          <div class="cell"><span id="sync-status"></span></div>
+          <button id="btn-sync" class="cell action" type="button">Enviar pendentes</button>
+          <button id="btn-sync-old" class="cell action" type="button" hidden></button>
+        </div>
+        <p class="group-f">Cada registo é enviado ao guardar. Sem rede fica pendente e segue depois. Editar um registo enviado atualiza a mesma linha.</p>
       </div>
 
-      <div class="card" id="card-local">
-        <h2>Excel no iPhone</h2>
-        <p id="local-status" class="muted"></p>
-        <button id="btn-open-local" class="btn primary block">Abrir / partilhar Excel atual</button>
-        <p class="muted small">O Excel atual é o <b>ficheiro base</b> mais todos os registos da app, ordenados por data. É sempre gerado de novo, por isso as correções aparecem logo.</p>
-        <label class="btn block file-btn">Usar o meu ficheiro como base…
-          <input id="file-base" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-        </label>
-        <button id="btn-reset-base" class="btn ghost block">Voltar ao modelo vazio</button>
+      <div class="group" id="card-local">
+        <div class="group-h">Excel no iPhone</div>
+        <div class="cells">
+          <div class="cell"><span id="local-status"></span></div>
+          <button id="btn-open-local" class="cell action strong" type="button">Abrir ou partilhar o Excel</button>
+          <label class="cell action file-btn">Usar o meu ficheiro como base…
+            <input id="file-base" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          </label>
+          <button id="btn-reset-base" class="cell action" type="button">Voltar ao modelo vazio</button>
+        </div>
+        <p class="group-f">O Excel é gerado na hora: ficheiro base mais todos os registos deste destino, por data. As correções aparecem logo.</p>
       </div>
 
-      <details class="card more">
-        <summary><h2>Outras exportações</h2></summary>
-        <label class="check"><input type="checkbox" id="only-new" checked> Só registos ainda não exportados</label>
-        <p id="export-count" class="muted small"></p>
-        <label class="btn block file-btn">Acrescentar a outro ficheiro Excel…
-          <input id="file-append" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-        </label>
-        <button id="btn-copy" class="btn block">Copiar linhas (para colar no Excel ou Sheets)</button>
-        <label class="check"><input type="checkbox" id="mark-exported" checked> Marcar como exportados</label>
-      </details>
+      <div class="group">
+        <div class="group-h">Outras exportações</div>
+        <div class="cells">
+          <label class="cell check"><span>Só registos ainda não exportados</span><input type="checkbox" id="only-new" class="switch" checked></label>
+          <label class="cell check"><span>Marcar como exportados</span><input type="checkbox" id="mark-exported" class="switch" checked></label>
+          <label class="cell action file-btn">Acrescentar a outro ficheiro Excel…
+            <input id="file-append" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          </label>
+          <button id="btn-copy" class="cell action" type="button">Copiar linhas para colar</button>
+        </div>
+        <p id="export-count" class="group-f"></p>
+      </div>
 
-      <div class="card">
-        <h2>Cópia de segurança</h2>
-        <button id="btn-backup" class="btn block">Guardar cópia (JSON)</button>
-        <label class="btn block file-btn">Restaurar cópia…
-          <input id="file-restore" type="file" accept=".json,application/json">
-        </label>
+      <div class="group">
+        <div class="group-h">Cópia de segurança</div>
+        <div class="cells">
+          <button id="btn-backup" class="cell action" type="button">Guardar cópia (JSON)</button>
+          <label class="cell action file-btn">Restaurar cópia…
+            <input id="file-restore" type="file" accept=".json,application/json">
+          </label>
+        </div>
       </div>
     </section>
 
     <!-- DEFINIÇÕES -->
     <section id="view-settings" class="view">
-      <div class="card">
-        <h2>Destino</h2>
-        <p class="muted small">Cada destino é um sítio para onde vão os registos: um Excel no iPhone ou uma Google Sheet. Podes ter vários (por exemplo, um por ficheiro ou por serviço).</p>
-        <div class="row">
-          <select id="profile-select" aria-label="Destino ativo"></select>
-          <button id="btn-profile-new" class="btn icon" type="button" title="Novo destino" aria-label="Novo destino">＋</button>
+      <div class="group">
+        <div class="group-h">Destino</div>
+        <div class="cells">
+          <label class="cell field"><span>Ativo</span><select id="profile-select" aria-label="Destino ativo"></select></label>
+          <div class="cell seg-cell">
+            <div class="seg" role="radiogroup" aria-label="Onde ficam os registos">
+              <label><input type="radio" name="mode" value="local"><span>Excel no iPhone</span></label>
+              <label><input type="radio" name="mode" value="sheets"><span>Google Sheets</span></label>
+            </div>
+          </div>
+          <button id="btn-profile-new" class="cell action" type="button">Novo destino…</button>
+          <button id="btn-profile-rename" class="cell action" type="button">Mudar o nome</button>
+          <button id="btn-profile-delete" class="cell action danger" type="button">Apagar este destino</button>
         </div>
-        <div class="row small-gap">
-          <button id="btn-profile-rename" class="btn ghost" type="button">Mudar nome</button>
-          <button id="btn-profile-delete" class="btn ghost danger" type="button">Apagar destino</button>
-        </div>
-        <label class="field-label">Onde ficam os registos deste destino</label>
-        <div class="seg" role="radiogroup">
-          <label><input type="radio" name="mode" value="local"><span>Excel no iPhone</span></label>
-          <label><input type="radio" name="mode" value="sheets"><span>Google Sheets</span></label>
-        </div>
-        <div id="sheets-config" hidden>
-          <label class="field-label" for="gs-sheet">Link da Google Sheet</label>
-          <input id="gs-sheet" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <p id="gs-sheet-info" class="muted small"></p>
-          <label class="field-label" for="gs-url">URL da Aplicação Web (Apps Script, termina em /exec)</label>
-          <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <label class="field-label" for="gs-token">Token (frase secreta, mínimo 8 caracteres)</label>
-          <input id="gs-token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <button id="btn-gs-test" class="btn block" type="button">Testar ligação</button>
-          <p id="gs-status" class="muted small"></p>
-          <details class="howto"><summary>Como configurar o Google Sheets (5 minutos)</summary>
-            <ol>
-              <li>No computador, abre <b>script.google.com</b> com a tua conta Google → <b>Novo projeto</b>.</li>
-              <li>Cola o código de <a href="https://github.com/MiguelFerreira23/casuistica-voz/blob/main/google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> tal como está, sem preencher nada.</li>
-              <li><b>Implementar → Nova implementação → Aplicação Web</b>, com "Executar como: Eu" e "Quem tem acesso: Qualquer pessoa". Autoriza.</li>
-              <li>Copia o URL que termina em <b>/exec</b> e cola-o acima, junto com o link da folha e um token à tua escolha.</li>
-              <li>Carrega em <b>Testar ligação</b>. O primeiro token testado fica associado ao script.</li>
-            </ol>
-            <p class="muted small">O mesmo script serve para várias folhas: basta criar outro destino com outro link.</p>
-          </details>
-        </div>
-        <p class="muted small">Estes dados ficam guardados só neste iPhone. A voz e a interpretação do texto correm sempre aqui; no modo Google Sheets só vai a linha final que confirmaste.</p>
+        <p class="group-f">Um destino é um sítio para onde vão os registos: um Excel no iPhone ou uma Google Sheet. Podes ter vários, por exemplo um por ficheiro.</p>
       </div>
 
-      <div class="card">
-        <h2>Campos obrigatórios</h2>
-        <p class="muted small">Marca os campos que têm de estar preenchidos neste destino. Os marcados como “habitual” são os que estão sempre preenchidos na casuística atual. Um campo vazio com nota (📝) conta como justificado.</p>
-        <div id="req-list"></div>
-        <button id="btn-req-reset" class="btn ghost block" type="button">Repor a sugestão</button>
+      <div class="group" id="sheets-config" hidden>
+        <div class="group-h">Ligação ao Google Sheets</div>
+        <div class="cells">
+          <label class="cell stack"><span>Link da Google Sheet</span>
+            <input id="gs-sheet" type="url" placeholder="https://docs.google.com/spreadsheets/d/…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+          <label class="cell stack"><span>URL do Apps Script (termina em /exec)</span>
+            <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+          <label class="cell stack"><span>Token (frase secreta, 8+ caracteres)</span>
+            <input id="gs-token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+          <button id="btn-gs-token" class="cell action" type="button">Gerar um token forte</button>
+          <button id="btn-gs-test" class="cell action strong" type="button">Testar ligação</button>
+        </div>
+        <p class="group-f"><span id="gs-sheet-info"></span> <span id="gs-status"></span></p>
+        <details class="howto">
+          <summary>Como configurar (5 minutos, no computador)</summary>
+          <div id="howto-steps"></div>
+        </details>
       </div>
 
-      <div class="card">
-        <h2>Ajuda</h2>
-        <button id="btn-guide" class="btn block" type="button">Ver o guia</button>
+      <div class="group">
+        <div class="group-h">Campos obrigatórios</div>
+        <div class="cells" id="req-list"></div>
+        <button id="btn-req-reset" class="link-btn" type="button">Repor os habituais</button>
+        <p class="group-f">“Habitual” marca os campos que estão sempre preenchidos na casuística atual. Um campo vazio com nota conta como justificado.</p>
       </div>
 
-      <div class="card">
-        <h2>Reconhecimento de voz</h2>
-        <p class="muted small">A transcrição corre no iPhone (Whisper). O modelo descarrega-se uma vez e fica guardado; o áudio nunca sai do dispositivo.</p>
-        <label class="field-label" for="model">Modelo</label>
-        <select id="model"></select>
-        <label class="check"><input type="checkbox" id="use-gpu"> Usar GPU (WebGPU, experimental)</label>
-        <button id="btn-load-model" class="btn block">Descarregar / testar modelo agora</button>
-        <p id="model-status" class="muted small"></p>
+      <div class="group">
+        <div class="group-h">Reconhecimento de voz</div>
+        <div class="cells">
+          <label class="cell field"><span>Modelo</span><select id="model"></select></label>
+          <label class="cell check"><span>Usar GPU (experimental)</span><input type="checkbox" id="use-gpu" class="switch"></label>
+          <button id="btn-load-model" class="cell action" type="button">Descarregar ou testar o modelo</button>
+        </div>
+        <p id="model-status" class="group-f">A transcrição corre no iPhone. O modelo descarrega-se uma vez e fica guardado.</p>
       </div>
-      <div class="card">
-        <h2>Dados</h2>
-        <p id="storage-info" class="muted small"></p>
-        <button id="btn-wipe" class="btn danger block">Apagar todos os registos</button>
+
+      <div class="group">
+        <div class="group-h">Ajuda e dados</div>
+        <div class="cells">
+          <button id="btn-guide" class="cell action" type="button">Ver o guia</button>
+          <button id="btn-wipe" class="cell action danger" type="button">Apagar todos os registos e gravações</button>
+        </div>
+        <p id="storage-info" class="group-f"></p>
       </div>
-      <p class="muted small center">Os registos ficam guardados neste browser. Faz cópias de segurança com regularidade.</p>
     </section>
   </main>
 
-  <nav class="tabbar">
-    <button data-view="new" class="active"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>Novo</button>
-    <button data-view="list"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>Registos<span id="badge" class="badge" hidden></span></button>
-    <button data-view="export"><svg viewBox="0 0 24 24"><path d="M12 3 7 8h3.5v6h3V8H17l-5-5ZM5 18h14v2H5z"/></svg>Exportar</button>
-    <button data-view="settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4-2.1-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>Definições</button>
+  <nav class="tabbar" aria-label="Secções">
+    <button data-view="new" class="active" type="button"><svg class="ic"><use href="#i-mic"/></svg>Novo</button>
+    <button data-view="list" type="button"><svg class="ic"><use href="#i-list"/></svg>Registos<span id="badge" class="badge" hidden></span></button>
+    <button data-view="export" type="button"><svg class="ic"><use href="#i-share"/></svg>Exportar</button>
+    <button data-view="settings" type="button"><svg class="ic"><use href="#i-sliders"/></svg>Definições</button>
   </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

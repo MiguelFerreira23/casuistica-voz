@@ -2,9 +2,10 @@ import { COLUMNS, SECTIONS, LISTS, COL_BY_KEY, emptyRecord, ageGroup, isoToPt, t
 import { parse } from './parser.js';
 import { appendToWorkbook } from './xlsx.js';
 import { Recorder, transcribe, loadModel, onSttEvents, MODELS } from './stt.js';
-import { allRecords as allStored, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile } from './store.js';
+import { allRecords as allStored, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile, putAudio, audiosOf, allAudios, deleteAudio, clearAudios, moveAudios } from './store.js';
 import { profiles, activeProfile, setActive, updateProfile, addProfile, removeProfile, belongsTo } from './profiles.js';
 import { sheet, editNote, showGuide } from './ui.js';
+import { HOWTO } from './howto.js';
 import { ping, upsert, parseSheetLink } from './gsheets.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -31,11 +32,12 @@ const state = {
 };
 
 function resetState() {
-  Object.assign(state, { id: null, createdAt: null, exportedAt: null, sync: null, profileId: null, values: emptyRecord(), origin: {}, why: {}, cellNotes: {}, autoNotes: new Set(), manual: new Set(), notes: [], dirty: false });
+  Object.assign(state, { id: null, draftId: newId(), createdAt: null, exportedAt: null, sync: null, profileId: null, values: emptyRecord(), origin: {}, why: {}, cellNotes: {}, autoNotes: new Set(), manual: new Set(), notes: [], dirty: false });
   $('#transcript').value = '';
   reparse();
   $('#btn-delete').hidden = true;
-  $('#btn-save').textContent = 'Guardar registo';
+  $('#btn-save').textContent = 'Rever e guardar';
+  renderAudios();
   setTitle();
 }
 
@@ -64,6 +66,8 @@ function syncAgeGroup() {
 // ---------------------------------------------------------------------------
 // Formulário
 
+const icon = (id, cls = 'ic') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+
 function buildForm() {
   const form = $('#form');
   form.innerHTML = '';
@@ -72,8 +76,9 @@ function buildForm() {
     d.className = 'section';
     d.dataset.section = sec.key;
     d.open = ['demo', 'reg', 'diag', 'evol'].includes(sec.key);
-    d.innerHTML = `<summary>${sec.label}<span class="count"></span></summary><div class="fields"></div>`;
-    const box = $('.fields', d);
+    d.innerHTML = `<summary>${icon('chev')}${sec.label}<span class="count"></span></summary><div class="cells"></div>
+      <button type="button" class="link-btn note-add">Acrescentar nota…</button>`;
+    const box = $('.cells', d);
     for (const c of COLUMNS.filter((x) => x.section === sec.key)) {
       const w = document.createElement('div');
       w.className = 'f' + (['text', 'long'].includes(c.type) && c.key !== 'np' ? ' wide' : '');
@@ -81,27 +86,19 @@ function buildForm() {
       const id = 'f-' + c.key;
       let ctl;
       if (c.type === 'list') {
-        ctl = `<select id="${id}"><option value="">—</option>${LISTS[c.list].map((o) => `<option>${escapeHtml(o)}</option>`).join('')}</select>`;
+        ctl = `<select id="${id}" class="val"><option value="">—</option>${LISTS[c.list].map((o) => `<option>${escapeHtml(o)}</option>`).join('')}</select>`;
       } else if (c.type === 'long') {
-        ctl = `<textarea id="${id}" rows="2"></textarea>`;
+        ctl = `<textarea id="${id}" class="val" rows="1"></textarea>`;
       } else if (c.type === 'date') {
-        ctl = `<input id="${id}" type="date">`;
+        ctl = `<input id="${id}" class="val" type="date">`;
       } else if (c.type === 'number') {
-        ctl = `<input id="${id}" type="text" inputmode="decimal">`;
+        ctl = `<input id="${id}" class="val" type="text" inputmode="decimal" placeholder="—">`;
       } else {
-        ctl = `<input id="${id}" type="text"${c.inputmode ? ` inputmode="${c.inputmode}"` : ''}>`;
+        ctl = `<input id="${id}" class="val" type="text"${c.inputmode ? ` inputmode="${c.inputmode}"` : ''} placeholder="${c.type === 'text' && c.key !== 'np' ? 'Escrever…' : '—'}">`;
       }
-      w.innerHTML = `<label for="${id}"><span class="dot"></span>${c.label}<span class="req" hidden>*</span><button type="button" class="note-btn" aria-label="Nota em ${c.label}">📝</button></label>${ctl}<div class="why"></div><div class="cnote"></div>`;
-      $('.note-btn', w).onclick = async (e) => {
-        e.preventDefault();
-        const presets = [notRecorded(c), 'Confirmar', 'Deduzido; confirmar'];
-        const r = await editNote({ label: c.label, note: state.cellNotes[c.key], presets });
-        if (r === null) return;
-        if (r) state.cellNotes[c.key] = r; else delete state.cellNotes[c.key];
-        state.autoNotes.delete(c.key);
-        state.dirty = true;
-        updateForm();
-      };
+      w.innerHTML = `<label class="row" for="${id}"><span class="lbl"><span class="dot"></span>${c.label}<span class="req" hidden>*</span></span>${ctl}</label>
+        <div class="why"></div><button type="button" class="cnote" hidden></button>`;
+      $('.cnote', w).onclick = () => noteFor(c);
       box.appendChild(w);
       const el = $('#' + id, w);
       el.addEventListener(c.type === 'list' || c.type === 'date' ? 'change' : 'input', () => {
@@ -114,12 +111,35 @@ function buildForm() {
         updateForm(c.key);
       });
     }
+    $('.note-add', d).onclick = () => noteFor(null, sec.key);
     form.appendChild(d);
   }
   const legend = document.createElement('div');
   legend.className = 'legend';
-  legend.innerHTML = '<span class="l-voz">Mencionado</span><span class="l-sug">Sugerido (o motivo aparece por baixo)</span><span class="l-man">Escrito à mão</span>';
+  legend.innerHTML = '<span><i class="dot voz"></i>Mencionado</span><span><i class="dot sug"></i>Sugerido</span><span><i class="dot man"></i>Escrito à mão</span>';
   form.appendChild(legend);
+}
+
+// Nota numa célula: de um campo (c) ou escolhendo o campo dentro de uma secção
+async function noteFor(c, sectionKey) {
+  let col = c;
+  if (!col) {
+    const cols = COLUMNS.filter((x) => x.section === sectionKey);
+    const first = cols.find((x) => missingFields(state.values, activeProfile().required, state.cellNotes).some((m) => m.key === x.key)) || cols[0];
+    const pick = await sheet({
+      title: 'Nota numa célula',
+      html: `<label class="muted small" for="note-col">Campo</label><select id="note-col">${cols.map((x) => `<option value="${x.key}" ${x === first ? 'selected' : ''}>${escapeHtml(x.label)}${state.cellNotes[x.key] ? ' (tem nota)' : ''}</option>`).join('')}</select>`,
+      buttons: [{ label: 'Cancelar', value: null }, { label: 'Continuar', primary: true, value: (el) => el.querySelector('#note-col').value }],
+    });
+    if (!pick) return;
+    col = COL_BY_KEY[pick];
+  }
+  const r = await editNote({ label: col.label, note: state.cellNotes[col.key], presets: [notRecorded(col), 'Confirmar', 'Deduzido; confirmar'] });
+  if (r === null) return;
+  if (r) state.cellNotes[col.key] = r; else delete state.cellNotes[col.key];
+  state.autoNotes.delete(col.key);
+  state.dirty = true;
+  updateForm();
 }
 
 function updateForm(skipKey) {
@@ -151,14 +171,15 @@ function updateForm(skipKey) {
     $('.req', w).hidden = !(prof.required[c.key] && (!rule.when || rule.when(state.values)));
     if (missing.has(c.key)) w.classList.add('missing');
     const note = state.cellNotes[c.key] || '';
-    $('.cnote', w).textContent = note;
-    $('.note-btn', w).classList.toggle('has', !!note);
+    const cn = $('.cnote', w);
+    cn.hidden = !note;
+    cn.innerHTML = note ? `${icon('note')}<span>${escapeHtml(note)}</span>` : '';
     if (note) w.classList.add('noted');
   }
   for (const d of $$('.section')) {
     const cols = COLUMNS.filter((c) => c.section === d.dataset.section);
     const n = cols.filter((c) => state.values[c.key] !== '').length;
-    $('.count', d).textContent = n ? `${n}/${cols.length}` : '';
+    $('.count', d).textContent = n ? `${n} de ${cols.length}` : '';
     if (n && !d.open && !d.dataset.touched) d.open = true;
   }
   renderSummary();
@@ -166,18 +187,23 @@ function updateForm(skipKey) {
 
 function renderSummary() {
   const filled = COLUMNS.filter((c) => state.values[c.key] !== '');
-  const voz = filled.filter((c) => state.origin[c.key] === 'voz').length;
-  const sug = filled.filter((c) => state.origin[c.key] === 'sug').length;
-  const man = filled.filter((c) => state.origin[c.key] === 'man').length;
-  const miss = missingFields(state.values, activeProfile().required, state.cellNotes).map((c) => c.label);
+  const count = (o) => filled.filter((c) => state.origin[c.key] === o).length;
+  const miss = missingFields(state.values, activeProfile().required, state.cellNotes);
   const nNotes = Object.keys(state.cellNotes).length;
-  const chips = [];
-  if (voz) chips.push(`<span class="chip voz">${voz} mencionados</span>`);
-  if (sug) chips.push(`<span class="chip sug">${sug} sugeridos</span>`);
-  if (man) chips.push(`<span class="chip man">${man} escritos à mão</span>`);
-  if (nNotes) chips.push(`<span class="chip">📝 ${nNotes} nota(s)</span>`);
-  if (miss.length) chips.push(`<span class="chip miss">Falta: ${miss.join(', ')}</span>`);
-  $('#summary').innerHTML = chips.join('');
+  const parts = [];
+  if (count('voz')) parts.push(`<span><i class="dot voz"></i>${count('voz')} mencionados</span>`);
+  if (count('sug')) parts.push(`<span><i class="dot sug"></i>${count('sug')} sugeridos</span>`);
+  if (count('man')) parts.push(`<span><i class="dot man"></i>${count('man')} à mão</span>`);
+  if (nNotes) parts.push(`<span>${nNotes} ${nNotes === 1 ? 'nota' : 'notas'}</span>`);
+  let html = parts.join('<span class="sep">·</span>');
+  if (miss.length) html += `<span class="miss">Falta: ${miss.map((c) => `<button type="button" data-k="${c.key}">${escapeHtml(c.label)}</button>`).join(', ')}</span>`;
+  $('#summary').innerHTML = html;
+  for (const b of $$('#summary .miss button')) b.onclick = () => {
+    const w = $(`.f[data-key="${b.dataset.k}"]`);
+    w.closest('details').open = true;
+    w.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(() => $('.val', w).focus({ preventScroll: true }), 350);
+  };
   $('#notes').innerHTML = state.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('');
 }
 
@@ -217,20 +243,99 @@ async function toggleRecord() {
   busy = true;
   try {
     const blob = await recorder.stop();
-    setStatus('A preparar o modelo…', 'Na primeira vez o modelo é descarregado (fica guardado).');
-    const text = await transcribe(blob, currentModel(), settings.get('gpu', false));
-    const ta = $('#transcript');
-    ta.value = (ta.value.trim() ? ta.value.trim().replace(/[.]?$/, '. ') : '') + text;
+    // 1.º guardar a gravação (fica como memória mesmo que a transcrição falhe)
+    const audio = { id: newId(), ownerId: ownerId(), createdAt: Date.now(), mime: blob.type || 'audio/mp4', data: await blob.arrayBuffer(), seconds: Math.round(recorder.seconds || 0), status: 'pendente', transcript: '' };
+    await putAudio(audio);
     state.dirty = true;
-    reparse();
-    setStatus('Pronto. Revê os campos ou grava mais.', 'Podes gravar várias vezes; o texto acumula.');
+    renderAudios();
+    await transcribeAudio(audio, true);
   } catch (e) {
     console.error(e);
-    setStatus('Não foi possível transcrever', e.message);
+    setStatus('Não foi possível gravar', e.message);
   } finally {
     busy = false;
     btn.classList.remove('busy');
     $('#progress').hidden = true;
+  }
+}
+
+async function transcribeAudio(audio, append) {
+  busy = true;
+  $('#rec').classList.add('busy');
+  setStatus('A preparar o modelo…', 'Na primeira vez o modelo é descarregado (fica guardado).');
+  try {
+    const text = await transcribe(new Blob([audio.data], { type: audio.mime }), currentModel(), settings.get('gpu', false));
+    await putAudio({ ...audio, status: 'transcrito', transcript: text });
+    if (append) {
+      const ta = $('#transcript');
+      ta.value = (ta.value.trim() ? ta.value.trim().replace(/[.]?$/, '. ') : '') + text;
+      reparse();
+    }
+    setStatus('Pronto. Revê os campos ou grava mais.', 'A gravação fica guardada neste registo.');
+    return text;
+  } catch (e) {
+    console.error(e);
+    await putAudio({ ...audio, status: 'erro', error: e.message });
+    setStatus('A gravação ficou guardada, mas não foi transcrita', 'Podes ouvi-la e escrever à mão, ou tentar de novo mais tarde.');
+    return null;
+  } finally {
+    busy = false;
+    $('#rec').classList.remove('busy');
+    $('#progress').hidden = true;
+    renderAudios();
+  }
+}
+
+const ownerId = () => state.id || state.draftId;
+const fmtDur = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const fmtTime = (t) => new Date(t).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const STATUS = { pendente: 'por transcrever', transcrito: 'transcrita', erro: 'não transcrita' };
+
+// Lista de gravações do registo em edição
+async function renderAudios() {
+  const list = await audiosOf(ownerId());
+  const box = $('#audios');
+  box.hidden = !list.length;
+  box.innerHTML = list.length ? `<div class="audios-h">Gravações (${list.length})</div>` + list.map((a, i) => audioRow(a, i)).join('') : '';
+  bindAudioRows(box, list, renderAudios);
+}
+
+function audioRow(a, i) {
+  return `<div class="audio" data-id="${a.id}">
+    <button type="button" class="play" aria-label="Ouvir gravação ${i + 1}">${icon('play')}</button>
+    <div class="meta"><b>${fmtTime(a.createdAt)}</b> · ${fmtDur(a.seconds || 0)} <span class="st st-${a.status}">${STATUS[a.status] || a.status}</span></div>
+    <button type="button" class="more" aria-label="Opções da gravação">${icon('more')}</button></div>`;
+}
+
+let player = null;
+function bindAudioRows(box, list, refresh) {
+  for (const row of $$('.audio', box)) {
+    const a = list.find((x) => x.id === row.dataset.id);
+    $('.play', row).onclick = () => {
+      if (player && player.dataset.id === a.id && !player.paused) { player.pause(); return; }
+      if (player) { player.pause(); URL.revokeObjectURL(player.src); }
+      player = new Audio(URL.createObjectURL(new Blob([a.data], { type: a.mime })));
+      player.dataset.id = a.id;
+      const btns = $$('.audio .play');
+      const setIcon = (playing) => btns.forEach((b) => { b.innerHTML = icon(playing && b.closest('.audio').dataset.id === a.id ? 'pause' : 'play'); });
+      player.onplay = () => setIcon(true);
+      player.onpause = player.onended = () => setIcon(false);
+      player.play();
+    };
+    $('.more', row).onclick = async () => {
+      const v = await sheet({
+        title: `Gravação de ${fmtTime(a.createdAt)}`,
+        html: a.transcript ? `<p class="muted small">Transcrição:</p><blockquote class="quote">${escapeHtml(a.transcript)}</blockquote>` : `<p class="muted small">${a.error ? 'Erro: ' + escapeHtml(a.error) : 'Ainda não transcrita.'}</p>`,
+        buttons: [
+          { label: 'Apagar', value: 'del', danger: true },
+          { label: 'Partilhar', value: 'share' },
+          { label: a.transcript ? 'Transcrever de novo' : 'Transcrever', value: 'tr', primary: true },
+        ],
+      });
+      if (v === 'del' && confirm('Apagar esta gravação?')) { await deleteAudio(a.id); refresh(); }
+      if (v === 'share') deliver(new Blob([a.data], { type: a.mime }), `gravacao-${new Date(a.createdAt).toISOString().slice(0, 16).replace(/[T:]/g, '-')}.${/webm/.test(a.mime) ? 'webm' : 'm4a'}`);
+      if (v === 'tr') { await transcribeAudio(a, a.ownerId === ownerId()); refresh(); }
+    };
   }
 }
 
@@ -244,7 +349,7 @@ onSttEvents({
     for (const x of fileProgress.values()) { l += x.loaded || 0; t += x.total || 0; }
     const pct = t ? Math.round((l / t) * 100) : 0;
     $('#progress').hidden = pct >= 100;
-    $('#progress div').style.width = pct + '%';
+    $('#progress div').style.setProperty('--p', pct / 100);
     const msg = `A descarregar modelo… ${pct}% (${(l / 1e6).toFixed(0)} de ${(t / 1e6).toFixed(0)} MB)`;
     if (busy) setStatus('A preparar o modelo…', msg);
     $('#model-status').textContent = msg;
@@ -258,22 +363,12 @@ const currentModel = () => settings.get('model', 'onnx-community/whisper-base');
 // Guardar / editar
 
 async function save() {
-  const miss = missingFields(state.values, activeProfile().required, state.cellNotes);
-  if (miss.length) {
-    const choice = await sheet({
-      title: 'Faltam campos obrigatórios',
-      html: `<ul>${miss.map((c) => `<li>${escapeHtml(c.label)}</li>`).join('')}</ul><p class="muted small">Se o dado não foi registado, podes guardar com uma nota “… não registado” em cada célula, como já se faz no Excel.</p>`,
-      buttons: [
-        { label: 'Voltar', value: null },
-        { label: 'Guardar assim', value: 'plain' },
-        { label: 'Guardar com nota', value: 'note', primary: true },
-      ],
-    });
-    if (!choice) return;
-    if (choice === 'note') for (const c of miss) state.cellNotes[c.key] = notRecorded(c);
-  }
-  const now = Date.now();
   const prof = activeProfile();
+  const miss = missingFields(state.values, prof.required, state.cellNotes);
+  const ok = await confirmSummary(prof, miss);
+  if (!ok) return;
+  if (ok.addNotes) for (const c of miss) state.cellNotes[c.key] = notRecorded(c);
+  const now = Date.now();
   const rec = {
     id: state.id || newId(),
     createdAt: state.createdAt || now,
@@ -290,6 +385,7 @@ async function save() {
     transcript: $('#transcript').value,
   };
   await putRecord(rec);
+  if (!state.id) await moveAudios(state.draftId, rec.id);
   requestPersistence();
   const updated = !!state.id;
   resetState();
@@ -299,6 +395,33 @@ async function save() {
     toast(r.sync.state === 'ok' ? `Enviado para o Sheets (linha ${r.sync.row})` : `Guardado no iPhone; envio pendente (${r.sync.error})`);
   } else toast(updated ? 'Registo atualizado' : 'Registo guardado');
   refreshBadge();
+}
+
+// Resumo do que vai ser guardado/enviado, para confirmar antes
+async function confirmSummary(prof, miss) {
+  const dest = prof.mode === 'sheets' ? `Vai ser enviado para o <b>Google Sheets</b> (${escapeHtml(prof.name)})${state.sync && state.sync.row ? `, linha ${state.sync.row}` : ''}.` : `Vai ser guardado no <b>Excel no iPhone</b> (${escapeHtml(prof.name)}).`;
+  let rows = '';
+  for (const sec of SECTIONS) {
+    const cols = COLUMNS.filter((c) => c.section === sec.key && (state.values[c.key] !== '' || state.cellNotes[c.key]));
+    if (!cols.length) continue;
+    rows += `<div class="sum-sec">${sec.label}</div>` + cols.map((c) => {
+      const v = state.values[c.key];
+      const shown = c.type === 'date' ? isoToPt(v) : v;
+      const o = state.origin[c.key];
+      return `<div class="sum-row"><span class="k">${escapeHtml(c.label)}</span><span class="v ${o || ''}">${shown !== '' ? escapeHtml(shown) : '—'}${o === 'sug' ? ' <i>sugerido</i>' : ''}${state.cellNotes[c.key] ? `<small>Nota: ${escapeHtml(state.cellNotes[c.key])}</small>` : ''}</span></div>`;
+    }).join('');
+  }
+  const nSug = COLUMNS.filter((c) => state.values[c.key] !== '' && state.origin[c.key] === 'sug').length;
+  const missHtml = miss.length ? `<div class="sum-miss"><b>Faltam ${miss.length} campo(s) obrigatório(s):</b> ${miss.map((c) => escapeHtml(c.label)).join(', ')}
+      <label class="check"><input type="checkbox" id="sum-addnotes" checked> Acrescentar a nota “… não registado” a cada um</label></div>` : '';
+  return sheet({
+    title: 'Confirmar registo',
+    html: `<p class="small">${dest}</p>${nSug ? `<p class="muted small">${nSug} valor(es) sugerido(s), marcados abaixo. Confirma se estão certos.</p>` : ''}${missHtml}<div class="sum">${rows}</div>`,
+    buttons: [
+      { label: 'Voltar a editar', value: null },
+      { label: prof.mode === 'sheets' ? 'Confirmar e enviar' : 'Confirmar e guardar', primary: true, value: (el) => ({ addNotes: !!(el.querySelector('#sum-addnotes') || {}).checked }) },
+    ],
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +466,8 @@ function edit(rec) {
   $('#transcript').value = rec.transcript || '';
   updateForm();
   $('#btn-delete').hidden = false;
-  $('#btn-save').textContent = 'Atualizar registo';
+  $('#btn-save').textContent = 'Rever e atualizar';
+  renderAudios();
   show('new');
   setTitle('Editar registo');
   window.scrollTo(0, 0);
@@ -352,7 +476,29 @@ function edit(rec) {
 // ---------------------------------------------------------------------------
 // Lista
 
+async function renderOrphans() {
+  const recIds = new Set((await allStored()).map((r) => r.id));
+  const list = (await allAudios()).filter((a) => !recIds.has(a.ownerId) && a.ownerId !== state.draftId);
+  const box = $('#orphans');
+  box.hidden = !list.length;
+  if (!list.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="audios-h">Gravações sem registo (${list.length})</div><p class="muted">Ditados que não chegaram a ser guardados. Ouve-os, ou junta-os ao registo que estás a criar.</p><div class="cells">` +
+    list.map((a, i) => audioRow(a, i).replace(/<button type="button" class="more"[^>]*>[\s\S]*?<\/button>/, '<button type="button" class="more">Juntar</button>')).join('') + '</div>';
+  bindAudioRows(box, list, renderOrphans);
+  for (const row of $$('.audio', box)) {
+    $('.more', row).onclick = async () => {
+      const a = list.find((x) => x.id === row.dataset.id);
+      await putAudio({ ...a, ownerId: ownerId() });
+      if (a.transcript) { const ta = $('#transcript'); ta.value = (ta.value.trim() ? ta.value.trim().replace(/[.]?$/, '. ') : '') + a.transcript; reparse(); }
+      show('new');
+      renderAudios();
+      toast(a.transcript ? 'Gravação e texto juntos ao registo atual' : 'Gravação junta ao registo atual');
+    };
+  }
+}
+
 async function renderList() {
+  renderOrphans();
   const q = fold($('#search').value.trim());
   const recs = (await allRecords()).filter((r) => !q || fold(Object.values(r.values).join(' ')).includes(q));
   const list = $('#list');
@@ -361,13 +507,13 @@ async function renderList() {
   let day = null;
   for (const r of recs) {
     const v = r.values;
-    if (v.data !== day) { day = v.data; html += `<div class="day">${day ? isoToPt(day) : 'Sem data'}</div>`; }
+    if (v.data !== day) { if (day !== null) html += '</div>'; day = v.data; html += `<div class="day">${day ? isoToPt(day) : 'Sem data'}</div><div class="cells">`; }
     const tag = recordTag(r);
     const who = [v.np && `NP ${v.np}`, v.idade !== '' && `${v.idade} a`, v.sexo && v.sexo[0], v.asa && `ASA ${v.asa}`].filter(Boolean).join(' · ');
     const what = [v.esp, v.proc || v.diag, v.tec].filter(Boolean).join(' · ');
     html += `<button class="item" data-id="${r.id}"><div class="l1"><span>${escapeHtml(who || 'Sem identificação')}</span>${tag}</div><div class="l2">${escapeHtml(what || '—')}</div></button>`;
   }
-  list.innerHTML = html;
+  list.innerHTML = html + '</div>';
   for (const b of $$('.item', list)) b.onclick = () => edit(recs.find((r) => r.id === b.dataset.id));
 }
 
@@ -467,7 +613,9 @@ function setTitle(t) {
 
 async function storageInfo() {
   const n = (await allRecords()).length;
-  let s = `${n} registo(s) neste destino; ${(await allStored()).length} no total neste dispositivo.`;
+  const aud = await allAudios();
+  const mb = aud.reduce((t, a) => t + (a.data ? a.data.byteLength : 0), 0) / 1e6;
+  let s = `${n} registo(s) neste destino; ${(await allStored()).length} no total neste dispositivo. ${aud.length} gravação(ões), ${mb.toFixed(1)} MB.`;
   try { if (navigator.storage && navigator.storage.persisted && (await navigator.storage.persisted())) s += ' Armazenamento persistente ativo.'; } catch {}
   $('#storage-info').textContent = s;
 }
@@ -498,7 +646,7 @@ function onProfileChange() {
   const list = profiles();
   const p = activeProfile();
   $('#profile-select').innerHTML = list.map((x) => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${escapeHtml(x.name)} · ${x.mode === 'sheets' ? 'Google Sheets' : 'Excel'}</option>`).join('');
-  $('#profile-chip').textContent = p.name;
+  $('#profile-chip').textContent = `${p.name} · ${p.mode === 'sheets' ? 'Sheets' : 'Excel'}`;
   $('#profile-chip').title = `Destino: ${p.name} (${p.mode === 'sheets' ? 'Google Sheets' : 'Excel no iPhone'})`;
   for (const r of $$('input[name=mode]')) r.checked = r.value === p.mode;
   $('#sheets-config').hidden = p.mode !== 'sheets';
@@ -507,6 +655,7 @@ function onProfileChange() {
   $('#gs-token').value = p.gsToken || '';
   $('#gs-status').textContent = '';
   $('#btn-profile-delete').hidden = list.length < 2;
+  $('#btn-profile-rename').textContent = `Mudar o nome (${p.name})`;
   sheetInfo();
   renderRequired();
   updateForm();
@@ -523,9 +672,8 @@ function renderRequired() {
     html += `<div class="req-sec">${sec.label}</div>`;
     for (const c of COLUMNS.filter((x) => x.section === sec.key)) {
       const r = REQUIRED_RULES[c.key] || {};
-      html += `<label class="req-item"><input type="checkbox" data-key="${c.key}" ${p.required[c.key] ? 'checked' : ''}>
-        <span class="t">${escapeHtml(c.label)}${r.whenText ? `<span class="c">${escapeHtml(r.whenText)}</span>` : ''}</span>
-        ${r.on ? '<span class="p">habitual</span>' : ''}</label>`;
+      html += `<label class="req-item"><span class="t">${escapeHtml(c.label)}${r.whenText ? `<span class="c">${escapeHtml(r.whenText)}</span>` : ''}</span>
+        ${r.on ? '<span class="p">habitual</span>' : ''}<input type="checkbox" class="switch" data-key="${c.key}" ${p.required[c.key] ? 'checked' : ''}></label>`;
     }
   }
   $('#req-list').innerHTML = html;
@@ -549,6 +697,7 @@ function openGuide() {
 }
 
 function init() {
+  $('#howto-steps').innerHTML = HOWTO;
   buildForm();
   resetState();
 
@@ -559,6 +708,7 @@ function init() {
   $('#btn-clear').onclick = () => { if (!state.dirty || confirm('Limpar o registo atual?')) resetState(); };
   $('#btn-delete').onclick = async () => {
     if (!state.id || !confirm(state.sync && state.sync.state === 'ok' ? `Apagar este registo da app?\nA linha ${state.sync.row} do Google Sheets não é apagada.` : 'Apagar este registo?')) return;
+    for (const a of await audiosOf(state.id)) await deleteAudio(a.id);
     await deleteRecord(state.id);
     toast('Registo apagado');
     resetState();
@@ -657,6 +807,15 @@ function init() {
   field('#gs-sheet', 'gsSheet', sheetInfo);
   field('#gs-url', 'gsUrl');
   $('#gs-token').oninput = (e) => updateProfile(activeProfile().id, { gsToken: e.target.value });
+  $('#btn-gs-token').onclick = () => {
+    if (activeProfile().gsToken && !confirm('Substituir o token atual? Se já o usaste no script, terás de o apagar lá (Propriedades do script → TOKEN).')) return;
+    const b = crypto.getRandomValues(new Uint8Array(24));
+    const t = btoa(String.fromCharCode(...b)).replace(/[+/=]/g, '').slice(0, 28);
+    $('#gs-token').value = t;
+    $('#gs-token').type = 'text';
+    updateProfile(activeProfile().id, { gsToken: t });
+    toast('Token gerado e guardado neste iPhone');
+  };
   $('#btn-gs-test').onclick = async () => {
     const st = $('#gs-status');
     st.textContent = 'A testar…';
@@ -688,9 +847,10 @@ function init() {
     } catch (e) { $('#model-status').textContent = 'Erro: ' + e.message; }
   };
   $('#btn-wipe').onclick = async () => {
-    if (!confirm('Apagar TODOS os registos deste dispositivo (todos os destinos)? Isto não se pode desfazer.')) return;
+    if (!confirm('Apagar TODOS os registos e gravações deste dispositivo (todos os destinos)? Isto não se pode desfazer.')) return;
     await clearAll();
-    toast('Registos apagados');
+    await clearAudios();
+    toast('Registos e gravações apagados');
     resetState();
     refreshBadge();
     storageInfo();

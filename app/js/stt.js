@@ -74,6 +74,7 @@ export class Recorder {
     this.chunks = [];
     this.rec.ondataavailable = (e) => e.data.size && this.chunks.push(e.data);
     this.rec.start(1000);
+    this.t0 = Date.now();
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       this.actx = new Ctx();
@@ -94,6 +95,7 @@ export class Recorder {
   }
 
   stop() {
+    this.seconds = (Date.now() - this.t0) / 1000;
     return new Promise((resolve) => {
       this.rec.onstop = () => {
         this.stream.getTracks().forEach((t) => t.stop());
