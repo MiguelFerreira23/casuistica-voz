@@ -128,7 +128,7 @@ test('notas automáticas', () => {
 test('doente crítico e termo logo após a etiqueta', () => {
   const { values: v } = parse('Doente crítico, 72 anos, masculino, ASA 5, diagnóstico politrauma com TCE, procedimento entubação, menos de uma hora.', { today });
   assert.equal(v.esp, 'Doente Crítico');
-  assert.equal(v.proc, 'entubação');
+  assert.equal(v.proc, 'intubação');
   assert.equal(v.tva, 'Intubação Orotraqueal');
   assert.equal(v.tec, '');
   assert.equal(v.dur, '< 1h');
@@ -149,4 +149,32 @@ test('URL ou ID do Apps Script', () => {
   assert.equal(scriptUrl('https://example.com/macros/s/abc/exec'), null);
   assert.equal(scriptUrl('olá'), null);
   assert.equal(scriptUrl(''), null);
+});
+
+test('teste real com erros típicos do reconhecimento de voz', () => {
+  const t = 'Portanto, número de processo 12345 e dá de 66, masculino, às a 4, urgência, cirurgia vascular, no dia que não é estico. É uma toma em guinal, vestimento, fogarte. A duração foi de 1h, técnica anestesica foi geral, anestesia geral é alanciada. A medização foi asa mais bígmas de toffe, tipo ver a máscara línja, césseva foi césseva, destino o CPA caso complexo não.';
+  const { values: v } = parse(t, { today });
+  assert.equal(v.np, '12345');
+  assert.equal(v.idade, 66);
+  assert.equal(v.sexo, 'Masculino');
+  assert.equal(v.asa, 'IV');
+  assert.equal(v.regime, 'Urgência');
+  assert.equal(v.esp, 'Cirurgia Vascular');
+  assert.equal(v.diag, 'hematoma inguinal');
+  assert.equal(v.proc, 'Fogarty');
+  assert.equal(v.dur, '1 a 3 horas');
+  assert.equal(v.tec, 'Geral');
+  assert.equal(v.ag, 'Balanceada');
+  assert.equal(v.monit, 'ASA + BIS + TOF');
+  assert.equal(v.tva, 'Máscara Laríngea');
+  assert.equal(v.sucva, 'Sucesso');
+  assert.equal(v.destino, 'UCPA');
+  assert.equal(v.complexo, 'Não');
+});
+
+test('correções não estragam horas nem texto normal', async () => {
+  const { correctTranscript } = await import('../app/js/corrections.js');
+  assert.equal(correctTranscript('às 4 horas'), 'às 4 horas');
+  assert.equal(correctTranscript('às a 4'), 'ASA 4');
+  assert.equal(correctTranscript('uma tomada de decisão'), 'uma tomada de decisão');
 });

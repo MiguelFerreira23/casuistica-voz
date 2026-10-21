@@ -2,6 +2,7 @@
 // Tudo corre localmente: regras + dicionário de sinónimos, sem serviços externos.
 
 import { fold, wordsToDigits } from './numbers.js';
+import { correctTranscript } from './corrections.js';
 import { LISTS, COLUMNS, ageGroup, todayIso } from './schema.js';
 
 // ---------------------------------------------------------------------------
@@ -227,7 +228,7 @@ export function parse(text, opts = {}) {
   const notes = [];
   const set = (k, v, o = 'voz') => { values[k] = v; origin[k] = o; };
 
-  const pre = wordsToDigits(text || '');
+  const pre = wordsToDigits(correctTranscript(text || ''));
   const f = fold(pre);
   // m: igual a f mas sem pontuação (mesmo comprimento, mesmas posições)
   const m = f.replace(/[^\p{L}\p{N}+/\-\s]/gu, ' ');
@@ -268,8 +269,10 @@ export function parse(text, opts = {}) {
         else if (stop >= 0) end = h.end + stop;
       } else if (firstRule) end = firstRule.start;
       for (const e of ext.spans) if (e.start >= h.end && e.start < end) end = e.start;
-      const dot = f.slice(h.end, end).search(/[.;\n]\s/);
-      if (dot >= 0) end = h.end + dot;
+      // ignora a pontuação logo a seguir à etiqueta ("diagnóstico. hematoma…")
+      const lead = f.slice(h.end, end).match(/^[\s,.;:–-]*/)[0].length;
+      const dot = f.slice(h.end + lead, end).search(/[.;\n](?:\s|$)/);
+      if (dot >= 0) end = h.end + lead + dot;
     }
     const value = cleanFree(pre.slice(h.end, end));
     freeSpans.push({ start: h.end, end, key: h.label.key, keepRules });

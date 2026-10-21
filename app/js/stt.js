@@ -39,9 +39,9 @@ function call(msg, transfer) {
 export function onSttEvents(l) { listeners = { ...listeners, ...l }; }
 export const loadModel = (model, useGpu) => call({ type: 'load', model, useGpu });
 
-export async function transcribe(blob, model, useGpu) {
+export async function transcribe(blob, model, useGpu, prompt = true) {
   const audio = await toMono16k(blob);
-  const res = await call({ type: 'transcribe', model, useGpu, audio }, [audio.buffer]);
+  const res = await call({ type: 'transcribe', model, useGpu, audio, prompt }, [audio.buffer]);
   return res.text;
 }
 

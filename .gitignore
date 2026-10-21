@@ -6,3 +6,9 @@
 
 .claude/
 node_modules/
+
+# ficheiros temporários de teste (podem conter dados de doentes)
+app/_tmp/
+*.m4a
+*.webm
+*.wav

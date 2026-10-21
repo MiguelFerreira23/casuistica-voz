@@ -264,11 +264,14 @@ async function transcribeAudio(audio, append) {
   $('#rec').classList.add('busy');
   setStatus('A preparar o modelo…', 'Na primeira vez o modelo é descarregado (fica guardado).');
   try {
-    const text = await transcribe(new Blob([audio.data], { type: audio.mime }), currentModel(), settings.get('gpu', false));
+    const text = await transcribe(new Blob([audio.data], { type: audio.mime }), currentModel(), settings.get('gpu', false), settings.get('vocab', false));
     await putAudio({ ...audio, status: 'transcrito', transcript: text });
     if (append) {
+      // nova transcrição desta gravação: substitui a anterior em vez de a repetir
       const ta = $('#transcript');
-      ta.value = (ta.value.trim() ? ta.value.trim().replace(/[.]?$/, '. ') : '') + text;
+      const cur = ta.value.trim();
+      if (audio.transcript && cur.includes(audio.transcript)) ta.value = cur.replace(audio.transcript, text);
+      else if (!cur.includes(text)) ta.value = (cur ? cur.replace(/[.]?$/, '. ') : '') + text;
       reparse();
     }
     setStatus('Pronto. Revê os campos ou grava mais.', 'A gravação fica guardada neste registo.');
@@ -840,6 +843,8 @@ function init() {
   sel.value = currentModel();
   sel.onchange = () => settings.set('model', sel.value);
   $('#use-gpu').checked = settings.get('gpu', false);
+  $('#use-vocab').checked = settings.get('vocab', false);
+  $('#use-vocab').onchange = (e) => settings.set('vocab', e.target.checked);
   $('#use-gpu').onchange = (e) => settings.set('gpu', e.target.checked);
   $('#btn-load-model').onclick = async () => {
     $('#model-status').textContent = 'A carregar…';
