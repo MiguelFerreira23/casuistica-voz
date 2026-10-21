@@ -6,6 +6,7 @@ import { allRecords as allStored, putRecord, deleteRecord, clearAll, newId, requ
 import { profiles, activeProfile, setActive, updateProfile, addProfile, removeProfile, belongsTo } from './profiles.js';
 import { sheet, editNote, showGuide } from './ui.js';
 import { HOWTO, bindHowto } from './howto.js';
+import * as gauth from './google.js';
 import { ping, upsert, parseSheetLink, scriptUrl } from './gsheets.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -394,6 +395,7 @@ async function save() {
   resetState();
   if (mode() === 'sheets') {
     toast('A enviar para o Google Sheets…');
+    if (ok.auth) await ok.auth.catch((e) => toast(e.message));
     const r = await syncRecord(rec);
     toast(r.sync.state === 'ok' ? `Enviado para o Sheets (linha ${r.sync.row})` : `Guardado no iPhone; envio pendente (${r.sync.error})`);
   } else toast(updated ? 'Registo atualizado' : 'Registo guardado');
@@ -422,7 +424,7 @@ async function confirmSummary(prof, miss) {
     html: `<p class="small">${dest}</p>${nSug ? `<p class="muted small">${nSug} valor(es) sugerido(s), marcados abaixo. Confirma se estão certos.</p>` : ''}${missHtml}<div class="sum">${rows}</div>`,
     buttons: [
       { label: 'Voltar a editar', value: null },
-      { label: prof.mode === 'sheets' ? 'Confirmar e enviar' : 'Confirmar e guardar', primary: true, value: (el) => ({ addNotes: !!(el.querySelector('#sum-addnotes') || {}).checked }) },
+      { label: prof.mode === 'sheets' ? 'Confirmar e enviar' : 'Confirmar e guardar', primary: true, value: (el) => ({ addNotes: !!(el.querySelector('#sum-addnotes') || {}).checked, auth: authInGesture() }) },
     ],
   });
 }
@@ -431,11 +433,22 @@ async function confirmSummary(prof, miss) {
 // Google Sheets
 
 const mode = () => activeProfile().mode;
+const method = () => activeProfile().gsMethod || 'google';
 const gsConfig = () => { const p = activeProfile(); return { url: p.gsUrl, token: p.gsToken, sheetLink: p.gsSheet }; };
+
+// Ligação pela conta Google: se a autorização (≈1 h) expirou, pede-a de novo.
+// Tem de ser chamada dentro de um toque (o Safari só abre a janela da Google assim).
+function authInGesture() {
+  if (mode() !== 'sheets' || method() !== 'google' || gauth.hasToken()) return null;
+  return gauth.authorize(activeProfile().gsEmail).then(({ email }) => {
+    if (email) updateProfile(activeProfile().id, { gsEmail: email });
+    renderGoogleAccount();
+  });
+}
 
 async function syncRecord(rec) {
   try {
-    const r = await upsert(gsConfig(), rec);
+    const r = method() === 'google' ? await gauth.upsert(activeProfile().gsSheet, rec) : await upsert(gsConfig(), rec);
     rec.sync = { state: 'ok', row: r.row, match: r.match, at: Date.now() };
   } catch (e) {
     rec.sync = { ...(rec.sync || {}), state: navigator.onLine === false ? 'pending' : 'error', error: e.message };
@@ -449,6 +462,8 @@ async function syncPending(silent) {
   if (syncing || mode() !== 'sheets') return;
   const todo = (await allRecords()).filter((r) => r.sync && r.sync.state !== 'ok');
   if (!todo.length) { if (!silent) toast('Nada pendente.'); return; }
+  // sem autorização válida, os envios automáticos esperam pelo próximo toque em "Enviar"
+  if (method() === 'google' && !gauth.hasToken()) { if (!silent) toast('Autoriza a conta Google para enviar.'); return; }
   syncing = true;
   let ok = 0;
   try {
@@ -647,6 +662,43 @@ function sheetInfo() {
   $('#gs-url-info').innerHTML = !u ? '' : scriptUrl(u) ? `<span class="ok">${/^https?:/i.test(u.trim()) ? 'URL' : 'ID'} do script reconhecido.</span>` : '<span class="err">URL ou ID do script não reconhecido.</span>';
 }
 
+function connectedText(d) {
+  const norm = (x) => String(x || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+  const mismatch = d.mismatch || COLUMNS.map((c, i) => ({ exp: c.label, got: (d.headers || [])[i] || '' }))
+    .filter((x) => norm(x.exp) !== norm(x.got) && !norm(x.got).startsWith(norm(x.exp)));
+  return `<span class="ok">Ligado</span> a “${escapeHtml(d.spreadsheet)}”, folha “${escapeHtml(d.sheet)}”. Última linha preenchida: ${d.lastRow}.` +
+    (mismatch.length ? `<br><span class="err">Colunas diferentes do esperado: ${mismatch.slice(0, 4).map((m) => `${escapeHtml(m.exp)} ≠ “${escapeHtml(m.got)}”`).join('; ')}${mismatch.length > 4 ? '…' : ''}</span>` : '<br>As 40 colunas coincidem.');
+}
+
+function renderMethod() {
+  const m = method();
+  for (const r of $$('input[name=gsmethod]')) r.checked = r.value === m;
+  for (const el of $$('.method-google')) el.hidden = m !== 'google';
+  for (const el of $$('.method-script')) el.hidden = m !== 'script';
+  $('#gs-url-info').hidden = m !== 'script';
+  $('#gs-method-help').textContent = m === 'google'
+    ? 'Recomendado. Configura-se só no telemóvel: a app escreve na folha com a tua conta Google, que tem de ter permissão de edição. A autorização dura cerca de 1 hora e é pedida de novo quando envias.'
+    : 'Alternativa sem ligar a conta Google à app. Precisa de um computador uma vez, para criar o script.';
+  renderGoogleAccount();
+  if (m === 'google') gauth.preload();
+}
+
+function renderGoogleAccount() {
+  const p = activeProfile();
+  if (!gauth.configured()) {
+    $('#google-account').textContent = 'A ligação por conta Google ainda não está ativa nesta versão.';
+    $('#btn-google-connect').disabled = true;
+    $('#btn-google-test').disabled = true;
+    return;
+  }
+  const on = gauth.hasToken();
+  $('#google-account').innerHTML = p.gsEmail
+    ? `${escapeHtml(p.gsEmail)} <span class="muted">· ${on ? 'autorizada' : 'pede autorização ao enviar'}</span>`
+    : 'Sem conta ligada';
+  $('#btn-google-connect').textContent = p.gsEmail ? (on ? 'Autorizar de novo' : 'Autorizar agora') : 'Ligar com a Google';
+  $('#btn-google-disconnect').hidden = !p.gsEmail;
+}
+
 function onProfileChange() {
   const list = profiles();
   const p = activeProfile();
@@ -655,6 +707,7 @@ function onProfileChange() {
   $('#profile-chip').title = `Destino: ${p.name} (${p.mode === 'sheets' ? 'Google Sheets' : 'Excel no iPhone'})`;
   for (const r of $$('input[name=mode]')) r.checked = r.value === p.mode;
   $('#sheets-config').hidden = p.mode !== 'sheets';
+  renderMethod();
   $('#gs-sheet').value = p.gsSheet || '';
   $('#gs-url').value = p.gsUrl || '';
   $('#gs-token').value = p.gsToken || '';
@@ -757,7 +810,11 @@ function init() {
     } catch { toast('Ficheiro inválido.'); }
   };
 
-  $('#btn-sync').onclick = () => syncPending(false);
+  $('#btn-sync').onclick = async () => {
+    const a = authInGesture();
+    if (a) { try { await a; } catch (e) { return toast(e.message); } }
+    syncPending(false);
+  };
   $('#btn-sync-old').onclick = async () => {
     const old = (await allRecords()).filter((r) => !r.sync);
     if (!confirm(`Enviar ${old.length} registo(s) para o Google Sheets? Confirma que ainda não estão lá, para não duplicar.`)) return;
@@ -826,10 +883,34 @@ function init() {
     const st = $('#gs-status');
     st.textContent = 'A testar…';
     try {
-      const d = await ping(gsConfig());
-      st.innerHTML = `<span class="ok">Ligado</span> a “${escapeHtml(d.spreadsheet)}”, folha “${escapeHtml(d.sheet)}”. Última linha preenchida: ${d.lastRow}.` +
-        (d.mismatch.length ? `<br><span class="err">Colunas diferentes do esperado: ${d.mismatch.slice(0, 4).map((m) => `${escapeHtml(m.exp)} ≠ “${escapeHtml(m.got)}”`).join('; ')}${d.mismatch.length > 4 ? '…' : ''}</span>` : '<br>As 40 colunas coincidem.');
+      st.innerHTML = connectedText(await ping(gsConfig()));
     } catch (e) { st.innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`; }
+  };
+  // Ligação pela conta Google
+  for (const r of $$('input[name=gsmethod]')) r.onchange = () => { updateProfile(activeProfile().id, { gsMethod: r.value }); renderMethod(); };
+  $('#btn-google-connect').onclick = async () => {
+    try {
+      const { email } = await gauth.authorize(activeProfile().gsEmail);
+      if (email) updateProfile(activeProfile().id, { gsEmail: email });
+      renderGoogleAccount();
+      toast('Conta Google ligada');
+      syncPending(true);
+    } catch (e) { toast(e.message); }
+  };
+  $('#btn-google-test').onclick = async () => {
+    const st = $('#gs-status');
+    st.textContent = 'A testar…';
+    try {
+      const a = authInGesture();
+      if (a) await a;
+      const d = await gauth.ping(activeProfile().gsSheet);
+      st.innerHTML = connectedText(d);
+    } catch (e) { st.innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`; }
+  };
+  $('#btn-google-disconnect').onclick = () => {
+    gauth.signOut();
+    updateProfile(activeProfile().id, { gsEmail: '' });
+    renderGoogleAccount();
   };
   $('#btn-req-reset').onclick = () => { updateProfile(activeProfile().id, { required: defaultRequired() }); renderRequired(); updateForm(); };
   $('#btn-guide').onclick = () => openGuide();

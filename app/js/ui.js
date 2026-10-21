@@ -78,7 +78,7 @@ const STEPS = [
     html: `<p>Escolhe agora; podes mudar ou criar mais destinos em <b>Definições</b>.</p>
       <div class="choice">
         <button type="button" data-mode="local"><b>Excel no iPhone</b><span>Os registos ficam no telemóvel. Abres ou partilhas o Excel quando quiseres.</span></button>
-        <button type="button" data-mode="sheets"><b>Google Sheets</b><span>Cada registo vai direto para uma folha do Google. Precisa de uma configuração de 5 minutos.</span></button>
+        <button type="button" data-mode="sheets"><b>Google Sheets</b><span>Cada registo vai direto para uma folha do Google. Ligas a tua conta Google aqui no telemóvel.</span></button>
       </div>`,
   },
   {

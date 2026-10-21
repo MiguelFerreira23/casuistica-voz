@@ -154,6 +154,23 @@
         <div class="cells">
           <label class="cell stack"><span>Link da Google Sheet</span>
             <input id="gs-sheet" type="url" placeholder="https://docs.google.com/spreadsheets/d/…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+          <div class="cell seg-cell">
+            <div class="seg" role="radiogroup" aria-label="Como ligar">
+              <label><input type="radio" name="gsmethod" value="google"><span>Conta Google</span></label>
+              <label><input type="radio" name="gsmethod" value="script"><span>Apps Script</span></label>
+            </div>
+          </div>
+        </div>
+        <p class="group-f" id="gs-method-help"></p>
+
+        <div class="cells method-google" id="google-config">
+          <div class="cell"><span id="google-account">Sem conta ligada</span></div>
+          <button id="btn-google-connect" class="cell action strong" type="button">Ligar com a Google</button>
+          <button id="btn-google-test" class="cell action" type="button">Testar ligação</button>
+          <button id="btn-google-disconnect" class="cell action danger" type="button" hidden>Desligar esta conta</button>
+        </div>
+
+        <div class="cells method-script" id="script-config">
           <label class="cell stack"><span>URL da app para a Web ou ID de implementação</span>
             <input id="gs-url" type="text" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec  ou  AKfycb…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
           <label class="cell stack"><span>Token (frase secreta, 8+ caracteres)</span>
@@ -162,7 +179,7 @@
           <button id="btn-gs-test" class="cell action strong" type="button">Testar ligação</button>
         </div>
         <p class="group-f"><span id="gs-sheet-info"></span> <span id="gs-url-info"></span> <span id="gs-status"></span></p>
-        <details class="howto">
+        <details class="howto method-script">
           <summary>Como configurar (5 minutos, no computador)</summary>
           <div id="howto-steps"></div>
         </details>
