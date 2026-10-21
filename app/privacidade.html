@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacidade · Casuística por voz</title>
+  <meta name="description" content="Política de privacidade da app Casuística por voz.">
+  <style>
+    :root { --bg: #f2f2f7; --card: #fff; --text: #111114; --muted: #6c6c72; --accent: #0a6b66; color-scheme: light; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #000; --card: #1c1c1e; --text: #f2f2f4; --muted: #9a9aa1; --accent: #3fb8ae; color-scheme: dark; } }
+    :root[data-theme="dark"] { --bg: #000; --card: #1c1c1e; --text: #f2f2f4; --muted: #9a9aa1; --accent: #3fb8ae; color-scheme: dark; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { font-size: 30px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.02em; }
+    h2 { font-size: 19px; margin: 32px 0 8px; }
+    p, li { max-width: 68ch; }
+    ul { padding-left: 22px; }
+    .muted { color: var(--muted); font-size: 15px; }
+    a { color: var(--accent); text-underline-offset: 2px; }
+    .card { background: var(--card); border-radius: 12px; padding: 4px 18px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Política de privacidade</h1>
+  <p class="muted">Casuística por voz · última atualização: 21 de outubro de 2026</p>
+
+  <p>A <b>Casuística por voz</b> é uma aplicação web para registar a casuística de anestesia a partir de
+  ditados. Foi feita para que os dados clínicos fiquem no dispositivo de quem a usa.</p>
+
+  <div class="card">
+  <h2>O que fica só no teu dispositivo</h2>
+  <ul>
+    <li><b>Gravações de áudio:</b> ficam guardadas no armazenamento do browser do teu dispositivo e nunca são enviadas.</li>
+    <li><b>Transcrição:</b> a passagem de voz a texto é feita no próprio dispositivo, com um modelo Whisper. O áudio não é enviado para nenhum serviço.</li>
+    <li><b>Interpretação do texto:</b> o preenchimento dos campos a partir do texto também é feito no dispositivo.</li>
+    <li><b>Registos e definições:</b> ficam no armazenamento do browser. Podes apagá-los a qualquer momento em Definições.</li>
+  </ul>
+  </div>
+
+  <h2>Quando há envio de dados</h2>
+  <p>Só há envio se tu escolheres um destino Google Sheets e confirmares o registo.</p>
+  <ul>
+    <li><b>Ligação pela conta Google:</b> a app pede à Google uma autorização temporária, de cerca de 1 hora, para ver e editar folhas de cálculo (<code>spreadsheets</code>), e o teu email (<code>email</code>), que serve só para mostrar qual a conta ligada. Com essa autorização, a app escreve diretamente na folha que indicaste <b>apenas a linha que confirmaste</b>, com as notas das células. Não lê outras folhas, não apaga nada e não guarda dados noutro sítio. A autorização fica na memória da sessão do browser e expira sozinha. Podes revogá-la em <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+    <li><b>Ligação por Apps Script:</b> a linha confirmada é enviada para um script que tu próprio instalas na tua conta Google, e que escreve na folha que indicaste.</li>
+  </ul>
+  <p>Os dados enviados ficam sujeitos à política de privacidade da Google e às permissões de partilha da tua folha.</p>
+
+  <h2>O que a app não faz</h2>
+  <ul>
+    <li>Não tem servidor próprio nem base de dados central.</li>
+    <li>Não usa publicidade, análise de utilização, cookies de rastreio ou serviços de terceiros para tratar dados.</li>
+    <li>Não vende nem partilha dados com ninguém.</li>
+  </ul>
+
+  <h2>Descargas técnicas</h2>
+  <p>Na primeira utilização, o browser descarrega o código da app (GitHub Pages), algumas bibliotecas (cdn.jsdelivr.net) e o modelo de voz (huggingface.co). Como em qualquer página web, esses serviços recebem o endereço IP do dispositivo, mas nunca os teus dados clínicos.</p>
+
+  <h2>Uso dos dados da Google</h2>
+  <p>O uso de informação recebida das APIs da Google cumpre a <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, incluindo os requisitos de uso limitado.</p>
+
+  <h2>Contacto</h2>
+  <p>Questões ou pedidos: <a href="https://github.com/MiguelFerreira23/casuistica-voz/issues">github.com/MiguelFerreira23/casuistica-voz/issues</a>.</p>
+
+  <p class="muted"><a href="./">Voltar à app</a></p>
+</main>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // Funciona sem rede: guarda a app e as bibliotecas (os modelos de voz ficam na cache do transformers.js).
-const VERSION = 'v15';
+const VERSION = 'v16';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/schema.js', 'js/parser.js', 'js/numbers.js', 'js/xlsx.js', 'js/stt.js', 'js/stt-worker.js', 'js/store.js', 'js/gsheets.js', 'js/profiles.js', 'js/ui.js', 'js/xlsx-comments.js', 'js/howto.js', 'js/corrections.js', 'js/google.js', 'guide/1-codigo.jpg', 'guide/2-implementar.jpg', 'guide/3-tipo.jpg', 'guide/4-config.jpg', 'guide/5-autorizar.jpg', 'template.xlsx', 'Code.gs', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

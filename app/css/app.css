@@ -350,3 +350,4 @@ select { cursor: pointer; }
 #google-config, #script-config { margin-top: 10px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --seg-on: #636366; } }
 :root[data-theme="dark"] { --seg-on: #636366; }
+a.cell { text-decoration: none; }
