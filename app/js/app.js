@@ -907,6 +907,21 @@ function init() {
       st.innerHTML = connectedText(d);
     } catch (e) { st.innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`; }
   };
+  $('#btn-google-create').onclick = async () => {
+    const p = activeProfile();
+    if (p.gsSheet && !confirm('Criar uma folha nova e passar a usá-la neste destino?')) return;
+    const st = $('#gs-status');
+    try {
+      const a = authInGesture();
+      if (a) await a;
+      st.textContent = 'A criar a folha…';
+      const url = await gauth.createSheet(`Casuística – ${p.name}`);
+      updateProfile(p.id, { gsSheet: url });
+      $('#gs-sheet').value = url;
+      sheetInfo();
+      st.innerHTML = connectedText(await gauth.ping(url)) + `<br><a href="${url}" target="_blank" rel="noopener">Abrir a folha nova</a>`;
+    } catch (e) { st.innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`; }
+  };
   $('#btn-google-disconnect').onclick = () => {
     gauth.signOut();
     updateProfile(activeProfile().id, { gsEmail: '' });

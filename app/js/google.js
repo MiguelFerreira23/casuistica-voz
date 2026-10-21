@@ -7,7 +7,7 @@ import { parseSheetLink } from './gsheets.js';
 import { dateSerial } from './xlsx.js';
 
 // ID de cliente OAuth (público; só funciona em páginas do domínio autorizado).
-export const CLIENT_ID = '';
+export const CLIENT_ID = '303931111690-orrchqq1ml7tudhujf5cvq26m1p4790a.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/spreadsheets openid email';
 const API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const MAIN_SHEET = 'Casuística';
@@ -15,7 +15,11 @@ const COMPLEX_SHEET = 'Casos Complexos';
 const NCOLS = COLUMNS.length; // A..AN
 const FIRST_ROW = 3;
 
-let token = null; // { access_token, expires }
+// { access_token, expires } — guardado só na sessão deste separador (desaparece ao fechar),
+// para sobreviver a um recarregamento da app enquanto não expira
+let token = null;
+try { token = JSON.parse(sessionStorage.getItem('cas.gtoken') || 'null'); } catch {}
+const keep = (t) => { token = t; try { t ? sessionStorage.setItem('cas.gtoken', JSON.stringify(t)) : sessionStorage.removeItem('cas.gtoken'); } catch {} };
 let gisReady = null;
 
 export const configured = () => !!CLIENT_ID;
@@ -59,7 +63,7 @@ export function authorize(hint) {
         if (!google.accounts.oauth2.hasGrantedAllScopes(r, 'https://www.googleapis.com/auth/spreadsheets')) {
           return reject(new Error('É preciso permitir o acesso às folhas de cálculo.'));
         }
-        token = { access_token: r.access_token, expires: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
+        keep({ access_token: r.access_token, expires: Date.now() + (Number(r.expires_in) || 3600) * 1000 });
         let email = '';
         try {
           const u = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: `Bearer ${token.access_token}` } });
@@ -75,7 +79,7 @@ export function authorize(hint) {
 
 export function signOut() {
   if (token && window.google && google.accounts) google.accounts.oauth2.revoke(token.access_token, () => {});
-  token = null;
+  keep(null);
 }
 
 async function api(path, opts = {}) {
@@ -86,7 +90,7 @@ async function api(path, opts = {}) {
   } catch {
     throw new Error(navigator.onLine === false ? 'Sem rede' : 'Não foi possível contactar a Google.');
   }
-  if (res.status === 401) { token = null; const e = new Error('A autorização Google expirou. Toca em enviar para voltar a autenticar.'); e.auth = true; throw e; }
+  if (res.status === 401) { keep(null); const e = new Error('A autorização Google expirou. Toca em enviar para voltar a autenticar.'); e.auth = true; throw e; }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (data.error && data.error.message) || `Erro ${res.status}`;
@@ -136,6 +140,15 @@ async function findRow(info, row, match) {
   return hits.length === 1 ? hits[0] : null;
 }
 
+// A data vai como número de série; garante que a célula a mostra como dd/mm/aaaa
+const dateFormat = (sheetId, row) => ({
+  repeatCell: {
+    range: { sheetId, startRowIndex: row - 1, endRowIndex: row, startColumnIndex: 0, endColumnIndex: 1 },
+    cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } },
+    fields: 'userEnteredFormat.numberFormat',
+  },
+});
+
 function toCells(v) {
   return COLUMNS.map((c) => {
     const x = v[c.key];
@@ -144,6 +157,40 @@ function toCells(v) {
     if (c.type === 'number' || (c.key === 'np' && /^\d{1,15}$/.test(String(x)))) { const n = Number(String(x).replace(',', '.')); return isNaN(n) ? String(x) : n; }
     return String(x);
   });
+}
+
+// Cria uma Google Sheet nova com as colunas da casuística (na conta autorizada).
+export async function createSheet(title) {
+  const ss = await api('', {
+    method: 'POST',
+    body: JSON.stringify({
+      properties: { title, locale: 'pt_PT' },
+      sheets: [{ properties: { title: MAIN_SHEET, gridProperties: { frozenRowCount: 2, columnCount: NCOLS } } }, { properties: { title: COMPLEX_SHEET } }],
+    }),
+  });
+  const id = ss.spreadsheetId;
+  const main = ss.sheets[0].properties.sheetId;
+  await api(`${id}/values:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: [
+        { range: `'${MAIN_SHEET}'!A2:AN2`, values: [COLUMNS.map((c) => c.label)] },
+        { range: `'${COMPLEX_SHEET}'!A1:E1`, values: [['Data', 'Especialidade', 'Procedimento', 'Complicações', 'Descrição do caso']] },
+      ],
+    }),
+  });
+  // coluna A como data dd/mm/aaaa e cabeçalho a negrito
+  await api(`${id}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [
+        { repeatCell: { range: { sheetId: main, startRowIndex: 2, startColumnIndex: 0, endColumnIndex: 1 }, cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd/mm/yyyy' } } }, fields: 'userEnteredFormat.numberFormat' } },
+        { repeatCell: { range: { sheetId: main, startRowIndex: 1, endRowIndex: 2 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: 'userEnteredFormat.textFormat' } },
+      ],
+    }),
+  });
+  return ss.spreadsheetUrl;
 }
 
 export async function ping(link) {
@@ -171,7 +218,7 @@ export async function upsert(link, rec) {
       rows: [{ values: COLUMNS.map((c) => ({ note: notes[c.key] || '' })) }],
       fields: 'note',
     },
-  }];
+  }, dateFormat(info.main.sheetId, row)];
   await api(`${info.id}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests }) });
   // casos complexos: uma linha na folha própria, só quando o registo é novo
   if (created && v.complexo === 'Sim' && info.complex) {
@@ -180,6 +227,7 @@ export async function upsert(link, rec) {
       method: 'PUT',
       body: JSON.stringify({ values: [[v.data ? dateSerial(v.data) : '', v.esp || '', v.proc || '', v.compl || '', [v.part, v.obs].filter(Boolean).join('; ')]] }),
     });
+    await api(`${info.id}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [dateFormat(info.complex.sheetId, r2)] }) });
   }
   return { row, created, match: { np: String(v.np || ''), data: v.data || '' } };
 }

@@ -1,9 +1,9 @@
 // Funciona sem rede: guarda a app e as bibliotecas (os modelos de voz ficam na cache do transformers.js).
-const VERSION = 'v12';
+const VERSION = 'v15';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/schema.js', 'js/parser.js', 'js/numbers.js', 'js/xlsx.js', 'js/stt.js', 'js/stt-worker.js', 'js/store.js', 'js/gsheets.js', 'js/profiles.js', 'js/ui.js', 'js/xlsx-comments.js', 'js/howto.js', 'js/corrections.js', 'js/google.js', 'guide/1-codigo.jpg', 'guide/2-implementar.jpg', 'guide/3-tipo.jpg', 'guide/4-config.jpg', 'guide/5-autorizar.jpg', 'template.xlsx', 'Code.gs', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open('shell-' + VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open('shell-' + VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -17,7 +17,8 @@ self.addEventListener('fetch', (e) => {
     // rede primeiro (para receber logo as atualizações); sem rede, usa a cópia guardada
     e.respondWith(caches.open('shell-' + VERSION).then(async (c) => {
       try {
-        const r = await fetch(e.request);
+        // "no-cache": confirma sempre com o servidor, para nunca usar um ficheiro antigo da cache HTTP
+        const r = await fetch(e.request.mode === 'navigate' ? e.request : new Request(e.request, { cache: 'no-cache' }));
         if (r.ok) c.put(e.request, r.clone());
         return r;
       } catch {

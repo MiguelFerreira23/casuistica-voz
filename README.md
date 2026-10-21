@@ -56,9 +56,39 @@ mais todos os registos do destino, ordenados por data. Como o ficheiro é sempre
 correções aparecem logo.
 
 ### Google Sheets
-Cada registo guardado é logo enviado para a Google Sheet, com as notas das células. Se editares um
-registo, a mesma linha é atualizada. Sem rede, o registo fica "por enviar" e segue mais tarde.
 
+Cada registo confirmado é enviado para a Google Sheet, com as notas das células. Editar um registo
+atualiza a mesma linha. Os casos complexos também vão para a folha "Casos Complexos". Sem rede, os
+registos ficam "por enviar" e seguem depois. Há duas formas de ligar:
+
+**1. Conta Google (recomendada; configura-se só no telemóvel)**
+1. Em **Definições → Destino → Google Sheets**, cola o **link da folha**.
+2. Carrega em **Ligar com a Google** e escolhe a conta. A conta tem de ter permissão de edição na folha.
+3. Carrega em **Testar ligação**. Deve aparecer "As 40 colunas coincidem".
+
+Também há **Criar uma folha nova com estas colunas**, para quem ainda não tem folha.
+
+Como funciona:
+- A app pede à Google uma autorização temporária (cerca de 1 hora) e escreve diretamente na folha,
+  sem servidor nem script pelo meio.
+- A autorização fica só na memória da sessão e expira sozinha.
+- Quando expira, volta a ser pedida no toque em **Confirmar e enviar** ou **Enviar pendentes**.
+- Quem pode escrever é decidido pela partilha da própria folha.
+
+Configuração única do programador, já feita:
+- projeto Google Cloud `casuistica-por-voz`, na conta Google do programador, com a Google Sheets
+  API ativa;
+- ecrã de autorização "Casuística por voz", em modo **teste**;
+- ID de cliente OAuth "Aplicativo da Web" para `https://miguelferreira23.github.io` (e
+  `http://localhost:8765` para testes). Está em `app/js/google.js`. Não é secreto: só funciona nessas
+  origens.
+
+**Acrescentar utilizadores:** enquanto a app estiver em modo de teste, só entram as contas da lista de
+testadores, até 100. Para acrescentar uma, abre
+<https://console.cloud.google.com/auth/audience?project=casuistica-por-voz> com a conta
+do programador → **Usuários de teste → Add users**. A alteração demora alguns minutos a ficar ativa.
+
+**2. Apps Script (alternativa; precisa de um computador uma vez)**
 Configuração (uma vez, no computador). Os passos ilustrados com prints estão na própria app, em
 **Definições → Google Sheets → Como configurar**:
 1. Em <https://script.google.com>, cria um **Novo projeto** e cola o código (na app: **Copiar o código**; ou `app/Code.gs`) tal como está.
