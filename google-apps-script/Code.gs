@@ -15,7 +15,7 @@
  * Para mudar o token: no editor do Apps Script, Definições do projeto → Propriedades do script
  * → apaga "TOKEN" e volta a testar a ligação na app com o token novo.
  *
- * O script só acrescenta ou atualiza linhas nas colunas A..AN da folha da casuística e, para casos
+ * O script só acrescenta ou atualiza linhas (valores e notas) nas colunas A..AN da folha da casuística e, para casos
  * complexos, acrescenta uma linha em "Casos Complexos". Não apaga nada.
  */
 
@@ -49,6 +49,12 @@ function doPost(e) {
       const isNew = !row;
       if (isNew) row = lastDataRow(sh) + 1;
       sh.getRange(row, 1, 1, NCOLS).setValues([values]);
+      // notas das células (vazias limpam notas antigas desta linha)
+      if (Array.isArray(req.notes)) {
+        const notes = req.notes.slice(0, NCOLS).map(function (n) { return n ? String(n) : ''; });
+        while (notes.length < NCOLS) notes.push('');
+        sh.getRange(row, 1, 1, NCOLS).setNotes([notes]);
+      }
       if (isNew && req.complex) appendComplex(ss, req.complex);
       return out({ ok: true, row: row, created: isNew });
     }

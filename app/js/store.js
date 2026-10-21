@@ -32,10 +32,10 @@ export const putRecord = (r) => tx('readwrite', (s) => s.put(r));
 export const deleteRecord = (id) => tx('readwrite', (s) => s.delete(id));
 export const clearAll = () => tx('readwrite', (s) => s.clear());
 
-// Ficheiro Excel base do modo "Excel no iPhone": { name, buffer, savedAt }
-export const getBaseFile = () => tx('readonly', (s) => s.get('base'), FILES);
-export const setBaseFile = (f) => tx('readwrite', (s) => s.put(f, 'base'), FILES);
-export const clearBaseFile = () => tx('readwrite', (s) => s.delete('base'), FILES);
+// Ficheiro Excel base do modo "Excel no iPhone", um por destino: { name, buffer, savedAt }
+export const getBaseFile = async (profileId) => (await tx('readonly', (s) => s.get('base:' + profileId), FILES)) || (profileId === 'p1' ? tx('readonly', (s) => s.get('base'), FILES) : undefined);
+export const setBaseFile = (profileId, f) => tx('readwrite', (s) => { s.delete('base'); return s.put(f, 'base:' + profileId); }, FILES);
+export const clearBaseFile = (profileId) => tx('readwrite', (s) => { s.delete('base'); return s.delete('base:' + profileId); }, FILES);
 
 export const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
 

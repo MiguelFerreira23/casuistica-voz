@@ -2,6 +2,7 @@
 // para manter intactas as validações, fórmulas, formatação e restantes folhas.
 
 import { COLUMNS } from './schema.js';
+import { addComments } from './xlsx-comments.js';
 
 const MAIN_SHEET = 'Casuística';
 const COMPLEX_SHEET = 'Casos Complexos';
@@ -111,7 +112,7 @@ function toCellValue(col, v) {
  * @param {object[]} records  lista de objetos {data, np, ...}
  * @returns {Promise<{blob: Blob|Uint8Array, firstRow: number, lastRow: number, overflow: boolean}>}
  */
-export async function appendToWorkbook(JSZip, buffer, records, { type = 'blob' } = {}) {
+export async function appendToWorkbook(JSZip, buffer, records, { type = 'blob', notes = [] } = {}) {
   const zip = await JSZip.loadAsync(buffer);
   const mainPath = await sheetPath(zip, MAIN_SHEET);
   if (!mainPath) throw new Error(`O ficheiro não tem a folha "${MAIN_SHEET}".`);
@@ -123,7 +124,15 @@ export async function appendToWorkbook(JSZip, buffer, records, { type = 'blob' }
     const r = start + i;
     COLUMNS.forEach((col, c) => setCell(main, r, c, toCellValue(col, rec[col.key]), styleOf(main, 3, c)));
   });
-  zip.file(mainPath, main.join());
+  // notas de célula -> comentários do Excel
+  const comments = [];
+  records.forEach((rec, i) => {
+    const n = notes[i] || {};
+    COLUMNS.forEach((col, c) => { if (n[col.key]) comments.push({ row: start + i, col: c, text: n[col.key] }); });
+  });
+  let mainXml = main.join();
+  if (comments.length) mainXml = await addComments(zip, mainPath, mainXml, comments);
+  zip.file(mainPath, mainXml);
 
   // Casos complexos -> folha própria
   const complex = records.filter((r) => r.complexo === 'Sim');

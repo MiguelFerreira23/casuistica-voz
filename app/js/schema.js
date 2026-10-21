@@ -28,19 +28,19 @@ export const LISTS = {
 
 // type: date | text | number | long (texto livre longo) | list
 export const COLUMNS = [
-  { key: 'data', label: 'Data', type: 'date', section: 'demo', required: true },
-  { key: 'np', label: 'NP', type: 'text', section: 'demo', required: true, inputmode: 'numeric' },
-  { key: 'idade', label: 'Idade', type: 'number', section: 'demo', required: true },
-  { key: 'grupo', label: 'Grupo Etário', type: 'list', list: 'grupo', section: 'demo', required: true },
-  { key: 'sexo', label: 'Sexo', type: 'list', list: 'sexo', section: 'demo', required: true },
-  { key: 'asa', label: 'ASA', type: 'list', list: 'asa', section: 'demo', required: true },
-  { key: 'regime', label: 'Regime', type: 'list', list: 'regime', section: 'reg', required: true },
-  { key: 'esp', label: 'Especialidade', type: 'list', list: 'esp', section: 'reg', required: true },
+  { key: 'data', label: 'Data', type: 'date', section: 'demo' },
+  { key: 'np', label: 'NP', type: 'text', section: 'demo', inputmode: 'numeric' },
+  { key: 'idade', label: 'Idade', type: 'number', section: 'demo' },
+  { key: 'grupo', label: 'Grupo Etário', type: 'list', list: 'grupo', section: 'demo' },
+  { key: 'sexo', label: 'Sexo', type: 'list', list: 'sexo', section: 'demo' },
+  { key: 'asa', label: 'ASA', type: 'list', list: 'asa', section: 'demo' },
+  { key: 'regime', label: 'Regime', type: 'list', list: 'regime', section: 'reg' },
+  { key: 'esp', label: 'Especialidade', type: 'list', list: 'esp', section: 'reg' },
   { key: 'local', label: 'Local fora do BO', type: 'list', list: 'local', section: 'reg' },
-  { key: 'diag', label: 'Diagnóstico', type: 'text', section: 'diag', required: true },
+  { key: 'diag', label: 'Diagnóstico', type: 'text', section: 'diag' },
   { key: 'part', label: 'Particularidades', type: 'long', section: 'diag' },
-  { key: 'proc', label: 'Procedimento', type: 'text', section: 'diag', required: true },
-  { key: 'dur', label: 'Duração', type: 'list', list: 'dur', section: 'diag', required: true },
+  { key: 'proc', label: 'Procedimento', type: 'text', section: 'diag' },
+  { key: 'dur', label: 'Duração', type: 'list', list: 'dur', section: 'diag' },
   { key: 'tec', label: 'Técnica Anestésica', type: 'list', list: 'tec', section: 'tec' },
   { key: 'ag', label: 'Anestesia Geral', type: 'list', list: 'ag', section: 'tec' },
   { key: 'neuro', label: 'Neuroeixo', type: 'list', list: 'neuro', section: 'neuro' },
@@ -64,7 +64,7 @@ export const COLUMNS = [
   { key: 'cvc', label: 'CVC', type: 'list', list: 'cvc', section: 'disp' },
   { key: 'cvcMet', label: 'Método CVC', type: 'list', list: 'metodo', section: 'disp' },
   { key: 'cvcSuc', label: 'Sucesso CVC', type: 'list', list: 'sucesso', section: 'disp' },
-  { key: 'destino', label: 'Destino', type: 'list', list: 'destino', section: 'evol', required: true },
+  { key: 'destino', label: 'Destino', type: 'list', list: 'destino', section: 'evol' },
   { key: 'compl', label: 'Complicações', type: 'long', section: 'evol' },
   { key: 'complexo', label: 'Caso complexo', type: 'list', list: 'simnao', section: 'evol' },
   { key: 'obs', label: 'Observações', type: 'long', section: 'evol' },
@@ -121,4 +121,77 @@ export function toTsvRow(values) {
     if (c.type === 'date') v = isoToPt(v);
     return String(v).replace(/[\t\r\n]+/g, ' ');
   }).join('\t');
+}
+
+// ---------------------------------------------------------------------------
+// Campos obrigatórios (sugestão inicial tirada do preenchimento real da casuística).
+// on: vem ativo por omissão. when: só se aplica nessas condições (texto em whenText).
+
+const IOT = ['Intubação Orotraqueal', 'Intubação Nasotraqueal'];
+export const REQUIRED_RULES = {
+  data: { on: true },
+  np: { on: false },
+  idade: { on: true },
+  grupo: { on: true },
+  sexo: { on: true },
+  asa: { on: true },
+  regime: { on: true },
+  esp: { on: true },
+  local: { on: true, when: (v) => v.esp === 'Fora do Bloco', whenText: 'se Especialidade = Fora do Bloco' },
+  diag: { on: true },
+  part: { on: false },
+  proc: { on: true },
+  dur: { on: true },
+  tec: { on: true, when: (v) => v.esp !== 'Doente Crítico', whenText: 'exceto Doente Crítico' },
+  ag: { on: true, when: (v) => ['Geral', 'Combinada'].includes(v.tec), whenText: 'se técnica Geral ou Combinada' },
+  neuro: { on: false },
+  neuroMet: { on: true, when: (v) => !!v.neuro, whenText: 'se houver neuroeixo' },
+  neuroInt: { on: true, when: (v) => !!v.neuro, whenText: 'se houver neuroeixo' },
+  neuroSuc: { on: true, when: (v) => !!v.neuro, whenText: 'se houver neuroeixo' },
+  bp1: { on: false },
+  bp2: { on: false },
+  bpMet: { on: true, when: (v) => !!v.bp1, whenText: 'se houver bloqueio' },
+  bpInt: { on: true, when: (v) => !!v.bp1, whenText: 'se houver bloqueio' },
+  bpSuc: { on: true, when: (v) => !!v.bp1, whenText: 'se houver bloqueio' },
+  monit: { on: true, when: (v) => v.esp !== 'Doente Crítico', whenText: 'exceto Doente Crítico' },
+  tva: { on: true, when: (v) => v.esp !== 'Doente Crítico', whenText: 'exceto Doente Crítico' },
+  tecva: { on: true, when: (v) => IOT.includes(v.tva), whenText: 'se intubação' },
+  laring: { on: true, when: (v) => IOT.includes(v.tva), whenText: 'se intubação' },
+  cl: { on: false, when: (v) => IOT.includes(v.tva), whenText: 'se intubação' },
+  sucva: { on: true, when: (v) => IOT.includes(v.tva) || v.tva === 'Máscara Laríngea', whenText: 'se intubação ou máscara laríngea' },
+  la: { on: false },
+  laMet: { on: true, when: (v) => !!v.la, whenText: 'se houver linha arterial' },
+  laSuc: { on: true, when: (v) => !!v.la, whenText: 'se houver linha arterial' },
+  cvc: { on: false },
+  cvcMet: { on: true, when: (v) => !!v.cvc, whenText: 'se houver CVC' },
+  cvcSuc: { on: true, when: (v) => !!v.cvc, whenText: 'se houver CVC' },
+  destino: { on: true },
+  compl: { on: false },
+  complexo: { on: true },
+  obs: { on: false },
+};
+
+export const defaultRequired = () => Object.fromEntries(COLUMNS.map((c) => [c.key, !!(REQUIRED_RULES[c.key] || {}).on]));
+
+// Campos obrigatórios em falta. Um campo vazio com nota conta como justificado.
+export function missingFields(values, required = defaultRequired(), cellNotes = {}) {
+  return COLUMNS.filter((c) => {
+    if (!required[c.key]) return false;
+    const r = REQUIRED_RULES[c.key] || {};
+    if (r.when && !r.when(values)) return false;
+    return (values[c.key] === '' || values[c.key] == null) && !cellNotes[c.key];
+  });
+}
+
+// "Método não registado", "Técnica VA não registada", "Complicações não registadas"
+const FEM = new Set(['data', 'idade', 'esp', 'dur', 'tec', 'ag', 'monit', 'tecva', 'la']);
+const FEM_PL = new Set(['part', 'compl', 'obs']);
+export const notRecorded = (c) => `${c.label} não ${FEM_PL.has(c.key) ? 'registadas' : FEM.has(c.key) ? 'registada' : 'registado'}`;
+
+// Notas automáticas de casos especiais
+export function autoCellNotes(v) {
+  const n = {};
+  if (v.esp === 'Doente Crítico' && !v.tec) n.tec = 'Doente crítico: técnica não registada no formulário (não entra na Tabela 19)';
+  if (v.tec === 'Geral' && (v.bp1 || v.neuro)) n.tec = `Teve ${v.bp1 ? 'bloqueio' : 'neuroeixo'} (${v.bp1 || v.neuro}). Pela definição do RAA seria Anestesia Combinada: confirmar`;
+  return n;
 }

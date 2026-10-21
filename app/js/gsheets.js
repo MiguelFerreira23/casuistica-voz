@@ -44,6 +44,7 @@ export async function upsert(cfg, rec) {
   const body = {
     action: 'upsert',
     values: COLUMNS.map((c) => v[c.key] ?? ''),
+    notes: COLUMNS.map((c) => (rec.cellNotes || {})[c.key] || ''),
     row: rec.sync && rec.sync.row,
     match: prev || null,
     complex: v.complexo === 'Sim' ? { data: v.data, esp: v.esp, proc: v.proc, compl: v.compl, desc: [v.part, v.obs].filter(Boolean).join('; ') } : null,

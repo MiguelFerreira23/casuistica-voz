@@ -20,7 +20,7 @@
 <body>
   <header class="topbar">
     <h1 id="title">Novo registo</h1>
-    <span class="local-badge" title="Nada sai do dispositivo">● local</span>
+    <button id="profile-chip" class="profile-chip" type="button" title="Destino ativo"></button>
   </header>
 
   <main>
@@ -105,7 +105,17 @@
     <!-- DEFINIÇÕES -->
     <section id="view-settings" class="view">
       <div class="card">
-        <h2>Onde ficam os registos</h2>
+        <h2>Destino</h2>
+        <p class="muted small">Cada destino é um sítio para onde vão os registos: um Excel no iPhone ou uma Google Sheet. Podes ter vários (por exemplo, um por ficheiro ou por serviço).</p>
+        <div class="row">
+          <select id="profile-select" aria-label="Destino ativo"></select>
+          <button id="btn-profile-new" class="btn icon" type="button" title="Novo destino" aria-label="Novo destino">＋</button>
+        </div>
+        <div class="row small-gap">
+          <button id="btn-profile-rename" class="btn ghost" type="button">Mudar nome</button>
+          <button id="btn-profile-delete" class="btn ghost danger" type="button">Apagar destino</button>
+        </div>
+        <label class="field-label">Onde ficam os registos deste destino</label>
         <div class="seg" role="radiogroup">
           <label><input type="radio" name="mode" value="local"><span>Excel no iPhone</span></label>
           <label><input type="radio" name="mode" value="sheets"><span>Google Sheets</span></label>
@@ -118,12 +128,34 @@
           <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false">
           <label class="field-label" for="gs-token">Token (frase secreta, mínimo 8 caracteres)</label>
           <input id="gs-token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <button id="btn-gs-test" class="btn block">Testar ligação</button>
+          <button id="btn-gs-test" class="btn block" type="button">Testar ligação</button>
           <p id="gs-status" class="muted small"></p>
-          <p class="muted small">Estes dados ficam guardados só neste iPhone. O primeiro token testado fica associado ao script; depois disso, só este iPhone (ou quem souber o token) consegue escrever.</p>
+          <details class="howto"><summary>Como configurar o Google Sheets (5 minutos)</summary>
+            <ol>
+              <li>No computador, abre <b>script.google.com</b> com a tua conta Google → <b>Novo projeto</b>.</li>
+              <li>Cola o código de <a href="https://github.com/MiguelFerreira23/casuistica-voz/blob/main/google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> tal como está, sem preencher nada.</li>
+              <li><b>Implementar → Nova implementação → Aplicação Web</b>, com "Executar como: Eu" e "Quem tem acesso: Qualquer pessoa". Autoriza.</li>
+              <li>Copia o URL que termina em <b>/exec</b> e cola-o acima, junto com o link da folha e um token à tua escolha.</li>
+              <li>Carrega em <b>Testar ligação</b>. O primeiro token testado fica associado ao script.</li>
+            </ol>
+            <p class="muted small">O mesmo script serve para várias folhas: basta criar outro destino com outro link.</p>
+          </details>
         </div>
-        <p class="muted small">Em ambos os modos, a voz e a interpretação do texto correm só no iPhone. No modo Google Sheets apenas a linha final, já confirmada por ti, é enviada para a folha.</p>
+        <p class="muted small">Estes dados ficam guardados só neste iPhone. A voz e a interpretação do texto correm sempre aqui; no modo Google Sheets só vai a linha final que confirmaste.</p>
       </div>
+
+      <div class="card">
+        <h2>Campos obrigatórios</h2>
+        <p class="muted small">Marca os campos que têm de estar preenchidos neste destino. Os marcados como “habitual” são os que estão sempre preenchidos na casuística atual. Um campo vazio com nota (📝) conta como justificado.</p>
+        <div id="req-list"></div>
+        <button id="btn-req-reset" class="btn ghost block" type="button">Repor a sugestão</button>
+      </div>
+
+      <div class="card">
+        <h2>Ajuda</h2>
+        <button id="btn-guide" class="btn block" type="button">Ver o guia</button>
+      </div>
+
       <div class="card">
         <h2>Reconhecimento de voz</h2>
         <p class="muted small">A transcrição corre no iPhone (Whisper). O modelo descarrega-se uma vez e fica guardado; o áudio nunca sai do dispositivo.</p>

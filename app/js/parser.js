@@ -255,20 +255,30 @@ export function parse(text, opts = {}) {
     if (h.label.key === 'compl' && /sem\s+$/.test(m.slice(Math.max(0, h.start - 5), h.start))) continue;
     let end = pre.length;
     for (const o of labelHits) if (o.start >= h.end && o.start < end) { end = o.start; break; }
+    let keepRules = false;
     if (h.label.short) {
-      for (const o of accepted) if (o.rule && o.start >= h.end && o.start < end && Object.keys(o.rule.set || {}).length !== 0) { end = o.start; break; }
+      const firstRule = accepted.find((o) => o.rule && o.start >= h.end && o.start < end && (o.rule.amb || Object.keys(o.rule.set || {}).length !== 0));
+      // termo conhecido logo a seguir à etiqueta ("procedimento entubação"): o texto vai até à pontuação
+      // e o termo continua a contar para o seu campo
+      if (firstRule && !/\S/.test(m.slice(h.end, firstRule.start))) {
+        keepRules = true;
+        const stop = m.slice(h.end, end).search(/[,;.]|\s(?:e|com|sob)\s/);
+        const p2 = f.slice(h.end, end).search(/[,;.]/);
+        if (p2 >= 0) end = h.end + p2;
+        else if (stop >= 0) end = h.end + stop;
+      } else if (firstRule) end = firstRule.start;
       for (const e of ext.spans) if (e.start >= h.end && e.start < end) end = e.start;
       const dot = f.slice(h.end, end).search(/[.;\n]\s/);
       if (dot >= 0) end = h.end + dot;
     }
     const value = cleanFree(pre.slice(h.end, end));
-    freeSpans.push({ start: h.end, end, key: h.label.key });
+    freeSpans.push({ start: h.end, end, key: h.label.key, keepRules });
     if (value) {
       const prev = values[h.label.key];
       set(h.label.key, prev && prev !== value ? `${prev}; ${value}` : value);
     }
   }
-  const inFree = (pos) => freeSpans.some((s) => pos >= s.start && pos < s.end);
+  const inFree = (pos) => freeSpans.some((s) => !s.keepRules && pos >= s.start && pos < s.end);
 
   // 4. aplicar regras na ordem do texto, com contexto
   let ctx = null; // { name, pos }
@@ -524,7 +534,7 @@ function inferDefaults(v, origin, why, { mon, ctxSeen }, notes) {
   // Técnica anestésica
   const gaWhy = v.ag ? `anestesia ${v.ag.toLowerCase()}` : ['Intubação Orotraqueal', 'Intubação Nasotraqueal', 'Máscara Laríngea'].includes(v.tva) ? v.tva : '';
   const regWhy = [v.neuro, v.bp1].filter(Boolean).join(' e ');
-  if (!v.tec) sug('tec', gaWhy && regWhy ? 'Combinada' : gaWhy ? 'Geral' : regWhy ? 'Regional' : '', `Por haver ${[gaWhy, regWhy].filter(Boolean).join(" + ")}`);
+  if (!v.tec && v.esp !== 'Doente Crítico') sug('tec', gaWhy && regWhy ? 'Combinada' : gaWhy ? 'Geral' : regWhy ? 'Regional' : '', `Por haver ${[gaWhy, regWhy].filter(Boolean).join(" + ")}`);
   else if (v.tec === 'Geral' && regWhy && origin.tec === 'voz' && v.bpInt !== 'Analgésico' && v.neuroInt !== 'Analgésico') notes.push('Técnica "Geral" com técnica regional: confirma se não é "Combinada".');
   if (['Geral', 'Combinada'].includes(v.tec)) sug('ag', 'Balanceada', 'A anestesia geral mais habitual; não foi dito o tipo');
 
@@ -565,9 +575,4 @@ export const DEFAULTS = {
 
 export function applyDefaults(v, origin, why, today = todayIso()) {
   for (const [k, d] of Object.entries(DEFAULTS)) if (!v[k]) { v[k] = d.value(today); origin[k] = 'sug'; why[k] = d.why; }
-}
-
-// Campos obrigatórios em falta (a técnica não se aplica a Doente Crítico)
-export function missingFields(values) {
-  return COLUMNS.filter((c) => c.required && (values[c.key] === '' || values[c.key] == null)).map((c) => c.label);
 }

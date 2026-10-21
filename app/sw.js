@@ -1,6 +1,6 @@
 // Funciona sem rede: guarda a app e as bibliotecas (os modelos de voz ficam na cache do transformers.js).
-const VERSION = 'v6';
-const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/schema.js', 'js/parser.js', 'js/numbers.js', 'js/xlsx.js', 'js/stt.js', 'js/stt-worker.js', 'js/store.js', 'js/gsheets.js', 'template.xlsx', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png'];
+const VERSION = 'v7';
+const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/schema.js', 'js/parser.js', 'js/numbers.js', 'js/xlsx.js', 'js/stt.js', 'js/stt-worker.js', 'js/store.js', 'js/gsheets.js', 'js/profiles.js', 'js/ui.js', 'js/xlsx-comments.js', 'template.xlsx', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open('shell-' + VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

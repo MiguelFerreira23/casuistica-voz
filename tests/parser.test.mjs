@@ -105,3 +105,32 @@ test('todas as sugestões dizem de onde vieram', () => {
   assert.match(why.tva, /Videolaringosc/);
   for (const [k, o] of Object.entries(origin)) if (o === 'sug') assert.ok(why[k], `sem motivo: ${k}`);
 });
+
+import { missingFields, defaultRequired, autoCellNotes } from '../app/js/schema.js';
+
+test('obrigatórios com condições', () => {
+  const base = { data: today, idade: 50, grupo: 'x', sexo: 'F', asa: 'II', regime: 'Urgência', diag: 'd', proc: 'p', dur: '< 1h', monit: 'ASA', tva: 'Máscara Laríngea', sucva: 'Sucesso', destino: 'UCPA', complexo: 'Não', ag: 'Balanceada' };
+  const keys = (v, notes) => missingFields(v, defaultRequired(), notes).map((c) => c.key);
+  assert.deepEqual(keys({ ...base, esp: 'Cirurgia Geral', tec: 'Geral' }), []);
+  assert.deepEqual(keys({ ...base, esp: 'Fora do Bloco', tec: 'Sedoanalgesia' }), ['local']);
+  assert.deepEqual(keys({ ...base, esp: 'Doente Crítico', tec: '' }), []);          // técnica não se aplica
+  assert.deepEqual(keys({ ...base, esp: 'Cirurgia Geral', tec: 'Geral', la: 'Radial' }), ['laMet', 'laSuc']);
+  assert.deepEqual(keys({ ...base, esp: 'Cirurgia Geral', tec: 'Geral', la: 'Radial' }, { laMet: 'Método não registado', laSuc: 'x' }), []);
+  assert.ok(!defaultRequired().np, 'NP não é obrigatório por omissão');
+});
+
+test('notas automáticas', () => {
+  assert.match(autoCellNotes({ esp: 'Doente Crítico', tec: '' }).tec, /não entra na Tabela 19/);
+  assert.match(autoCellNotes({ esp: 'Cirurgia Geral', tec: 'Geral', bp1: 'Bainha dos Retos' }).tec, /Combinada/);
+  assert.deepEqual(autoCellNotes({ esp: 'Cirurgia Geral', tec: 'Geral' }), {});
+});
+
+test('doente crítico e termo logo após a etiqueta', () => {
+  const { values: v } = parse('Doente crítico, 72 anos, masculino, ASA 5, diagnóstico politrauma com TCE, procedimento entubação, menos de uma hora.', { today });
+  assert.equal(v.esp, 'Doente Crítico');
+  assert.equal(v.proc, 'entubação');
+  assert.equal(v.tva, 'Intubação Orotraqueal');
+  assert.equal(v.tec, '');
+  assert.equal(v.dur, '< 1h');
+  assert.equal(v.diag, 'politrauma com TCE');
+});

@@ -38,17 +38,26 @@ Na primeira utilização, com Wi-Fi: **Definições → Descarregar / testar mod
 
 Para testar no PC: `python -m http.server 8765 --directory app` e abre <http://localhost:8765>.
 
-## Dois modos (Definições → "Onde ficam os registos")
+## Primeira utilização
+
+Na primeira vez que a app é aberta aparece um **guia** curto: o que a app faz, como ditar, como rever,
+onde ficam os registos e o download do modelo de voz. Para o voltar a ver: **Definições → Ver o guia**.
+
+## Destinos (Definições → Destino)
+
+Um destino é um sítio para onde vão os registos, com a sua própria configuração. Podes ter vários,
+por exemplo um por ficheiro, por folha do Google ou por serviço. Os registos de cada destino ficam
+separados, e o destino ativo aparece no canto superior direito.
 
 ### Excel no iPhone
 Os registos ficam na app. Em **Exportar → Abrir / partilhar Excel atual** é gerado um Excel com o
 *ficheiro base* (o modelo vazio, ou o teu ficheiro se escolheres "Usar o meu ficheiro como base")
-mais todos os registos, ordenados por data. Como o ficheiro é sempre gerado de novo, as correções
-aparecem logo. No menu de partilha escolhes "Guardar em Ficheiros" ou "Abrir no Excel".
+mais todos os registos do destino, ordenados por data. Como o ficheiro é sempre gerado de novo, as
+correções aparecem logo.
 
 ### Google Sheets
-Cada registo guardado é logo enviado para a Google Sheet. Se editares um registo, a mesma linha é
-atualizada. Sem rede, o registo fica "por enviar" e segue mais tarde.
+Cada registo guardado é logo enviado para a Google Sheet, com as notas das células. Se editares um
+registo, a mesma linha é atualizada. Sem rede, o registo fica "por enviar" e segue mais tarde.
 
 Configuração (uma vez). O repositório não tem links nem segredos, porque tudo se configura na app:
 1. Em <https://script.google.com> (na tua conta), cria um **Novo projeto** e cola
@@ -68,6 +77,41 @@ com o token novo.
 
 O script só escreve nas colunas A..AN da folha da casuística (e acrescenta uma linha em
 "Casos Complexos" quando "Caso complexo = Sim"); não altera nem apaga mais nada.
+
+## Campos obrigatórios e notas
+
+Em **Definições → Campos obrigatórios**, cada cabeçalho tem um visto, guardado por destino. A sugestão
+inicial ("habitual") vem do preenchimento real da casuística:
+
+- **Sempre:** Data, Idade, Grupo Etário, Sexo, ASA, Regime, Especialidade, Diagnóstico,
+  Procedimento, Duração, Destino e Caso complexo.
+- **Exceto Doente Crítico:** Técnica Anestésica, Monitorização e Tipo VA.
+- **Condicionais:**
+  - Local fora do BO, se a especialidade for Fora do Bloco;
+  - Anestesia Geral, se a técnica for Geral ou Combinada;
+  - Técnica VA e Laringoscópio, se houver intubação;
+  - Sucesso VA, se houver intubação ou máscara laríngea;
+  - Método, intuito e sucesso, se houver neuroeixo, bloqueio, LA ou CVC.
+- **Não obrigatórios:** NP (só ~15% das linhas o têm), Particularidades, Bloqueios, LA/CVC (o local),
+  Cormack-Lehane, Complicações e Observações.
+
+**Notas de célula (📝):** cada campo pode ter uma nota, como as que já existem no Excel.
+- Ao **Excel** chegam como comentários; ao **Google Sheets** chegam como notas.
+- Um campo obrigatório vazio **com nota** conta como justificado.
+- Ao guardar com campos em falta, a app oferece "Guardar com nota", que escreve "… não registado" em cada um.
+- Há notas automáticas para casos conhecidos. Por exemplo, num Doente Crítico sem técnica fica
+  "Doente crítico: técnica não registada no formulário (não entra na Tabela 19)".
+
+## Outros modelos de ficheiro
+
+Outra folha ou ficheiro **com as mesmas colunas** (A..AN) só precisa de um **novo destino**,
+sem código. O "Testar ligação" confirma se as colunas coincidem.
+
+Um modelo com **colunas diferentes** precisa de uma definição nova no código:
+- as colunas e listas em `app/js/schema.js`;
+- o vocabulário de ditado em `app/js/parser.js`.
+
+Cada destino já guarda o modelo que usa (`model`), por isso os dois modelos podem coexistir.
 
 ## Como ditar
 

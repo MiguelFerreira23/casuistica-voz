@@ -1,11 +1,15 @@
-import { COLUMNS, SECTIONS, LISTS, COL_BY_KEY, emptyRecord, ageGroup, isoToPt, toTsvRow, todayIso } from './schema.js';
-import { parse, missingFields } from './parser.js';
+import { COLUMNS, SECTIONS, LISTS, COL_BY_KEY, emptyRecord, ageGroup, isoToPt, toTsvRow, todayIso, missingFields, REQUIRED_RULES, defaultRequired, autoCellNotes, notRecorded } from './schema.js';
+import { parse } from './parser.js';
 import { appendToWorkbook } from './xlsx.js';
 import { Recorder, transcribe, loadModel, onSttEvents, MODELS } from './stt.js';
-import { allRecords, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile } from './store.js';
+import { allRecords as allStored, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile } from './store.js';
+import { profiles, activeProfile, setActive, updateProfile, addProfile, removeProfile, belongsTo } from './profiles.js';
+import { sheet, editNote, showGuide } from './ui.js';
 import { ping, upsert, parseSheetLink } from './gsheets.js';
 
 const $ = (s, el = document) => el.querySelector(s);
+// registos do destino ativo
+const allRecords = async () => { const p = activeProfile(); return (await allStored()).filter((r) => belongsTo(r, p)); };
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 // ---------------------------------------------------------------------------
@@ -19,13 +23,15 @@ const state = {
   values: emptyRecord(),
   origin: {},
   why: {},
+  cellNotes: {},
+  autoNotes: new Set(),
   manual: new Set(),
   notes: [],
   dirty: false,
 };
 
 function resetState() {
-  Object.assign(state, { id: null, createdAt: null, exportedAt: null, sync: null, values: emptyRecord(), origin: {}, why: {}, manual: new Set(), notes: [], dirty: false });
+  Object.assign(state, { id: null, createdAt: null, exportedAt: null, sync: null, profileId: null, values: emptyRecord(), origin: {}, why: {}, cellNotes: {}, autoNotes: new Set(), manual: new Set(), notes: [], dirty: false });
   $('#transcript').value = '';
   reparse();
   $('#btn-delete').hidden = true;
@@ -85,7 +91,17 @@ function buildForm() {
       } else {
         ctl = `<input id="${id}" type="text"${c.inputmode ? ` inputmode="${c.inputmode}"` : ''}>`;
       }
-      w.innerHTML = `<label for="${id}"><span class="dot"></span>${c.label}</label>${ctl}<div class="why"></div>`;
+      w.innerHTML = `<label for="${id}"><span class="dot"></span>${c.label}<span class="req" hidden>*</span><button type="button" class="note-btn" aria-label="Nota em ${c.label}">📝</button></label>${ctl}<div class="why"></div><div class="cnote"></div>`;
+      $('.note-btn', w).onclick = async (e) => {
+        e.preventDefault();
+        const presets = [notRecorded(c), 'Confirmar', 'Deduzido; confirmar'];
+        const r = await editNote({ label: c.label, note: state.cellNotes[c.key], presets });
+        if (r === null) return;
+        if (r) state.cellNotes[c.key] = r; else delete state.cellNotes[c.key];
+        state.autoNotes.delete(c.key);
+        state.dirty = true;
+        updateForm();
+      };
       box.appendChild(w);
       const el = $('#' + id, w);
       el.addEventListener(c.type === 'list' || c.type === 'date' ? 'change' : 'input', () => {
@@ -107,6 +123,14 @@ function buildForm() {
 }
 
 function updateForm(skipKey) {
+  // notas automáticas (ex.: doente crítico sem técnica); não substituem notas escritas por ti
+  for (const k of state.autoNotes) delete state.cellNotes[k];
+  state.autoNotes.clear();
+  for (const [k, n] of Object.entries(autoCellNotes(state.values))) {
+    if (!state.cellNotes[k]) { state.cellNotes[k] = n; state.autoNotes.add(k); }
+  }
+  const prof = activeProfile();
+  const missing = new Set(missingFields(state.values, prof.required, {}).map((c) => c.key));
   for (const c of COLUMNS) {
     const w = $(`.f[data-key="${c.key}"]`);
     const el = $('input,select,textarea', w);
@@ -119,11 +143,17 @@ function updateForm(skipKey) {
       }
       if (el.value !== String(v)) el.value = v;
     }
-    w.classList.remove('voz', 'sug', 'man', 'missing');
+    w.classList.remove('voz', 'sug', 'man', 'missing', 'noted');
     const o = state.origin[c.key];
     if (v !== '' && o) w.classList.add(o);
     $('.why', w).textContent = v !== '' && o === 'sug' ? state.why[c.key] || '' : '';
-    if (c.required && v === '') w.classList.add('missing');
+    const rule = REQUIRED_RULES[c.key] || {};
+    $('.req', w).hidden = !(prof.required[c.key] && (!rule.when || rule.when(state.values)));
+    if (missing.has(c.key)) w.classList.add('missing');
+    const note = state.cellNotes[c.key] || '';
+    $('.cnote', w).textContent = note;
+    $('.note-btn', w).classList.toggle('has', !!note);
+    if (note) w.classList.add('noted');
   }
   for (const d of $$('.section')) {
     const cols = COLUMNS.filter((c) => c.section === d.dataset.section);
@@ -139,11 +169,13 @@ function renderSummary() {
   const voz = filled.filter((c) => state.origin[c.key] === 'voz').length;
   const sug = filled.filter((c) => state.origin[c.key] === 'sug').length;
   const man = filled.filter((c) => state.origin[c.key] === 'man').length;
-  const miss = missingFields(state.values);
+  const miss = missingFields(state.values, activeProfile().required, state.cellNotes).map((c) => c.label);
+  const nNotes = Object.keys(state.cellNotes).length;
   const chips = [];
   if (voz) chips.push(`<span class="chip voz">${voz} mencionados</span>`);
   if (sug) chips.push(`<span class="chip sug">${sug} sugeridos</span>`);
   if (man) chips.push(`<span class="chip man">${man} escritos à mão</span>`);
+  if (nNotes) chips.push(`<span class="chip">📝 ${nNotes} nota(s)</span>`);
   if (miss.length) chips.push(`<span class="chip miss">Falta: ${miss.join(', ')}</span>`);
   $('#summary').innerHTML = chips.join('');
   $('#notes').innerHTML = state.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('');
@@ -226,17 +258,32 @@ const currentModel = () => settings.get('model', 'onnx-community/whisper-base');
 // Guardar / editar
 
 async function save() {
-  const miss = missingFields(state.values);
-  if (miss.length && !confirm(`Faltam: ${miss.join(', ')}.\nGuardar mesmo assim?`)) return;
+  const miss = missingFields(state.values, activeProfile().required, state.cellNotes);
+  if (miss.length) {
+    const choice = await sheet({
+      title: 'Faltam campos obrigatórios',
+      html: `<ul>${miss.map((c) => `<li>${escapeHtml(c.label)}</li>`).join('')}</ul><p class="muted small">Se o dado não foi registado, podes guardar com uma nota “… não registado” em cada célula, como já se faz no Excel.</p>`,
+      buttons: [
+        { label: 'Voltar', value: null },
+        { label: 'Guardar assim', value: 'plain' },
+        { label: 'Guardar com nota', value: 'note', primary: true },
+      ],
+    });
+    if (!choice) return;
+    if (choice === 'note') for (const c of miss) state.cellNotes[c.key] = notRecorded(c);
+  }
   const now = Date.now();
+  const prof = activeProfile();
   const rec = {
     id: state.id || newId(),
     createdAt: state.createdAt || now,
     updatedAt: now,
     exportedAt: state.exportedAt,
     changedAfterExport: !!state.exportedAt,
+    profileId: state.profileId || prof.id,
     sync: mode() === 'sheets' ? { ...(state.sync || {}), state: 'pending' } : state.sync,
     values: { ...state.values },
+    cellNotes: { ...state.cellNotes },
     origin: { ...state.origin },
     why: { ...state.why },
     manual: [...state.manual],
@@ -257,8 +304,8 @@ async function save() {
 // ---------------------------------------------------------------------------
 // Google Sheets
 
-const mode = () => settings.get('mode', 'local');
-const gsConfig = () => ({ url: settings.get('gsUrl', ''), token: settings.get('gsToken', ''), sheetLink: settings.get('gsSheet', '') });
+const mode = () => activeProfile().mode;
+const gsConfig = () => { const p = activeProfile(); return { url: p.gsUrl, token: p.gsToken, sheetLink: p.gsSheet }; };
 
 async function syncRecord(rec) {
   try {
@@ -287,7 +334,8 @@ async function syncPending(silent) {
 
 function edit(rec) {
   Object.assign(state, {
-    id: rec.id, createdAt: rec.createdAt, exportedAt: rec.exportedAt, sync: rec.sync || null,
+    id: rec.id, createdAt: rec.createdAt, exportedAt: rec.exportedAt, sync: rec.sync || null, profileId: rec.profileId,
+    cellNotes: { ...(rec.cellNotes || {}) }, autoNotes: new Set(),
     values: { ...emptyRecord(), ...rec.values }, origin: Object.fromEntries(Object.entries(rec.origin || {}).map(([k, o]) => [k, ['inf', 'auto', 'def'].includes(o) ? 'sug' : o])), why: { ...(rec.why || {}) },
     manual: new Set(COLUMNS.map((c) => c.key)), // ao editar, nada é reescrito pelo texto
     notes: [], dirty: false,
@@ -346,7 +394,7 @@ async function refreshBadge() {
   const never = recs.filter((r) => !r.sync).length;
   $('#btn-sync-old').hidden = !never;
   $('#btn-sync-old').textContent = `Enviar também ${never} registo(s) criados antes (modo Excel)`;
-  const base = await getBaseFile();
+  const base = await getBaseFile(activeProfile().id);
   $('#local-status').textContent = `Base: ${base ? `${base.name} (importado a ${new Date(base.savedAt).toLocaleDateString('pt-PT')})` : 'modelo vazio'} · ${recs.length} registo(s) na app.`;
   $('#btn-reset-base').hidden = !base;
   $('#card-sheets').hidden = mode() !== 'sheets';
@@ -355,9 +403,9 @@ async function refreshBadge() {
 async function openLocalExcel() {
   const recs = (await allRecords()).sort((a, b) => (a.values.data || '').localeCompare(b.values.data || '') || a.createdAt - b.createdAt);
   if (!window.JSZip) return toast('A biblioteca de Excel ainda não carregou. Tenta de novo.');
-  const base = await getBaseFile();
+  const base = await getBaseFile(activeProfile().id);
   const buf = base ? base.buffer : await (await fetch('template.xlsx')).arrayBuffer();
-  const res = await appendToWorkbook(window.JSZip, buf, recs.map((r) => r.values));
+  const res = await appendToWorkbook(window.JSZip, buf, recs.map((r) => r.values), { notes: recs.map((r) => r.cellNotes || {}) });
   const name = base ? base.name.replace(/\.xlsx$/i, '') : 'Casuistica';
   await deliver(res.blob, `${name}_${todayIso()}.xlsx`);
   if (res.overflow) toast('Atenção: há linhas depois da 302, que as tabelas do Excel não contam.');
@@ -382,7 +430,7 @@ async function exportTo(buffer, filename) {
   const recs = await recordsToExport();
   if (!recs.length) return toast('Não há registos para exportar.');
   if (!window.JSZip) return toast('A biblioteca de Excel ainda não carregou. Tenta de novo.');
-  const res = await appendToWorkbook(window.JSZip, buffer, recs.map((r) => r.values));
+  const res = await appendToWorkbook(window.JSZip, buffer, recs.map((r) => r.values), { notes: recs.map((r) => r.cellNotes || {}) });
   await deliver(res.blob, filename);
   await markExported(recs);
   toast(`${recs.length} linha(s) nas linhas ${res.firstRow}–${res.lastRow}` + (res.overflow ? ' — atenção: as tabelas só contam até à linha 302' : ''));
@@ -419,7 +467,7 @@ function setTitle(t) {
 
 async function storageInfo() {
   const n = (await allRecords()).length;
-  let s = `${n} registo(s) guardados neste dispositivo.`;
+  let s = `${n} registo(s) neste destino; ${(await allStored()).length} no total neste dispositivo.`;
   try { if (navigator.storage && navigator.storage.persisted && (await navigator.storage.persisted())) s += ' Armazenamento persistente ativo.'; } catch {}
   $('#storage-info').textContent = s;
 }
@@ -436,6 +484,69 @@ function toast(msg) {
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function fold(s) { return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); }
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+// ---------------------------------------------------------------------------
+// Destinos, obrigatórios e guia
+
+function sheetInfo() {
+  const link = activeProfile().gsSheet;
+  const p = parseSheetLink(link);
+  $('#gs-sheet-info').innerHTML = !link ? '' : p ? `<span class="ok">Folha reconhecida</span>${p.gid ? ` · separador ${p.gid}` : ''}` : '<span class="err">Link não reconhecido</span>';
+}
+
+function onProfileChange() {
+  const list = profiles();
+  const p = activeProfile();
+  $('#profile-select').innerHTML = list.map((x) => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${escapeHtml(x.name)} · ${x.mode === 'sheets' ? 'Google Sheets' : 'Excel'}</option>`).join('');
+  $('#profile-chip').textContent = p.name;
+  $('#profile-chip').title = `Destino: ${p.name} (${p.mode === 'sheets' ? 'Google Sheets' : 'Excel no iPhone'})`;
+  for (const r of $$('input[name=mode]')) r.checked = r.value === p.mode;
+  $('#sheets-config').hidden = p.mode !== 'sheets';
+  $('#gs-sheet').value = p.gsSheet || '';
+  $('#gs-url').value = p.gsUrl || '';
+  $('#gs-token').value = p.gsToken || '';
+  $('#gs-status').textContent = '';
+  $('#btn-profile-delete').hidden = list.length < 2;
+  sheetInfo();
+  renderRequired();
+  updateForm();
+  refreshBadge();
+  storageInfo();
+  if ($('#view-list').classList.contains('active')) renderList();
+  syncPending(true);
+}
+
+function renderRequired() {
+  const p = activeProfile();
+  let html = '';
+  for (const sec of SECTIONS) {
+    html += `<div class="req-sec">${sec.label}</div>`;
+    for (const c of COLUMNS.filter((x) => x.section === sec.key)) {
+      const r = REQUIRED_RULES[c.key] || {};
+      html += `<label class="req-item"><input type="checkbox" data-key="${c.key}" ${p.required[c.key] ? 'checked' : ''}>
+        <span class="t">${escapeHtml(c.label)}${r.whenText ? `<span class="c">${escapeHtml(r.whenText)}</span>` : ''}</span>
+        ${r.on ? '<span class="p">habitual</span>' : ''}</label>`;
+    }
+  }
+  $('#req-list').innerHTML = html;
+  for (const cb of $$('#req-list input')) cb.onchange = () => {
+    const req = { ...activeProfile().required, [cb.dataset.key]: cb.checked };
+    updateProfile(activeProfile().id, { required: req });
+    updateForm();
+  };
+}
+
+function openGuide() {
+  showGuide({
+    mode: activeProfile().mode,
+    onMode: (m) => { updateProfile(activeProfile().id, { mode: m }); onProfileChange(); },
+    onLoadModel: () => loadModel(currentModel(), settings.get('gpu', false)),
+    onDone: (m) => {
+      settings.set('onboarded', true);
+      if (m === 'sheets' && !activeProfile().gsUrl) { show('settings'); toast('Preenche os dados do Google Sheets.'); }
+    },
+  });
+}
 
 function init() {
   buildForm();
@@ -475,7 +586,7 @@ function init() {
     } catch { toast('Não foi possível copiar.'); }
   };
   $('#btn-backup').onclick = async () => {
-    const blob = new Blob([JSON.stringify({ app: 'casuistica', version: 1, records: await allRecords() }, null, 1)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ app: 'casuistica', version: 2, profiles: profiles().map(({ gsToken, ...p }) => p), records: await allStored() }, null, 1)], { type: 'application/json' });
     deliver(blob, `casuistica-backup-${todayIso()}.json`);
   };
   $('#file-restore').onchange = async (e) => {
@@ -504,34 +615,48 @@ function init() {
     if (!f) return;
     const buffer = await f.arrayBuffer();
     try { await appendToWorkbook(window.JSZip, buffer, []); } catch (err) { return toast('Ficheiro inválido: ' + err.message); }
-    await setBaseFile({ name: f.name, buffer, savedAt: Date.now() });
+    await setBaseFile(activeProfile().id, { name: f.name, buffer, savedAt: Date.now() });
     toast('Ficheiro base atualizado');
     refreshBadge();
   };
   $('#btn-reset-base').onclick = async () => {
     if (!confirm('Voltar a usar o modelo vazio como base?')) return;
-    await clearBaseFile();
+    await clearBaseFile(activeProfile().id);
     refreshBadge();
   };
 
-  // Definições: destino
-  const applyMode = () => {
-    $('#sheets-config').hidden = mode() !== 'sheets';
-    for (const r of $$('input[name=mode]')) r.checked = r.value === mode();
-    refreshBadge();
+  // Definições: destinos
+  $('#profile-select').onchange = (e) => { setActive(e.target.value); onProfileChange(); };
+  $('#profile-chip').onclick = () => show('settings');
+  $('#btn-profile-new').onclick = async () => {
+    const name = prompt('Nome do novo destino (ex.: “Casuística bloco central”)', '');
+    if (!name || !name.trim()) return;
+    addProfile(name.trim(), activeProfile());
+    onProfileChange();
+    toast('Destino criado. Escolhe onde ficam os registos.');
   };
-  for (const r of $$('input[name=mode]')) r.onchange = () => { settings.set('mode', r.value); applyMode(); };
-  const sheetInfo = () => {
-    const p = parseSheetLink(settings.get('gsSheet', ''));
-    $('#gs-sheet-info').innerHTML = !settings.get('gsSheet', '') ? '' : p ? `<span class="ok">Folha reconhecida</span>${p.gid ? ` · separador ${p.gid}` : ''}` : '<span class="err">Link não reconhecido</span>';
+  $('#btn-profile-rename').onclick = () => {
+    const p = activeProfile();
+    const name = prompt('Novo nome do destino', p.name);
+    if (!name || !name.trim()) return;
+    updateProfile(p.id, { name: name.trim() });
+    onProfileChange();
   };
-  $('#gs-sheet').value = settings.get('gsSheet', '');
-  $('#gs-sheet').oninput = (e) => { settings.set('gsSheet', e.target.value.trim()); sheetInfo(); };
-  sheetInfo();
-  $('#gs-url').value = settings.get('gsUrl', '');
-  $('#gs-token').value = settings.get('gsToken', '');
-  $('#gs-url').oninput = (e) => settings.set('gsUrl', e.target.value.trim());
-  $('#gs-token').oninput = (e) => settings.set('gsToken', e.target.value);
+  $('#btn-profile-delete').onclick = async () => {
+    const p = activeProfile();
+    const n = (await allRecords()).length;
+    if (profiles().length < 2) return toast('Tem de existir pelo menos um destino.');
+    if (!confirm(`Apagar o destino “${p.name}”${n ? ` e os seus ${n} registo(s) neste iPhone` : ''}? Os ficheiros e folhas não são alterados.`)) return;
+    for (const r of await allRecords()) await deleteRecord(r.id);
+    await clearBaseFile(p.id);
+    removeProfile(p.id);
+    onProfileChange();
+  };
+  for (const r of $$('input[name=mode]')) r.onchange = () => { updateProfile(activeProfile().id, { mode: r.value }); onProfileChange(); };
+  const field = (id, key, after) => { $(id).oninput = (e) => { updateProfile(activeProfile().id, { [key]: e.target.value.trim() }); if (after) after(); }; };
+  field('#gs-sheet', 'gsSheet', sheetInfo);
+  field('#gs-url', 'gsUrl');
+  $('#gs-token').oninput = (e) => updateProfile(activeProfile().id, { gsToken: e.target.value });
   $('#btn-gs-test').onclick = async () => {
     const st = $('#gs-status');
     st.textContent = 'A testar…';
@@ -541,7 +666,10 @@ function init() {
         (d.mismatch.length ? `<br><span class="err">Colunas diferentes do esperado: ${d.mismatch.slice(0, 4).map((m) => `${escapeHtml(m.exp)} ≠ “${escapeHtml(m.got)}”`).join('; ')}${d.mismatch.length > 4 ? '…' : ''}</span>` : '<br>As 40 colunas coincidem.');
     } catch (e) { st.innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`; }
   };
-  applyMode();
+  $('#btn-req-reset').onclick = () => { updateProfile(activeProfile().id, { required: defaultRequired() }); renderRequired(); updateForm(); };
+  $('#btn-guide').onclick = () => openGuide();
+  onProfileChange();
+  if (!settings.get('onboarded', false)) openGuide();
   window.addEventListener('online', () => syncPending(true));
   syncPending(true);
 
@@ -560,9 +688,10 @@ function init() {
     } catch (e) { $('#model-status').textContent = 'Erro: ' + e.message; }
   };
   $('#btn-wipe').onclick = async () => {
-    if (!confirm('Apagar TODOS os registos deste dispositivo? Isto não se pode desfazer.')) return;
+    if (!confirm('Apagar TODOS os registos deste dispositivo (todos os destinos)? Isto não se pode desfazer.')) return;
     await clearAll();
     toast('Registos apagados');
+    resetState();
     refreshBadge();
     storageInfo();
   };
