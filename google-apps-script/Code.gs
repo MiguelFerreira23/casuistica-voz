@@ -15,6 +15,10 @@
  * Para mudar o token: no editor do Apps Script, Definições do projeto → Propriedades do script
  * → apaga "TOKEN" e volta a testar a ligação na app com o token novo.
  *
+ * Segurança: o script só aceita pedidos com o token e só escreve nas folhas autorizadas
+ * (a primeira testada fica registada em "SHEETS"; para outra folha, acrescenta o ID a SHEETS,
+ * separado por vírgula). Não devolve dados das linhas.
+ *
  * O script só acrescenta ou atualiza linhas (valores e notas) nas colunas A..AN da folha da casuística e, para casos
  * complexos, acrescenta uma linha em "Casos Complexos". Não apaga nada.
  */
@@ -33,6 +37,8 @@ function doPost(e) {
     const auth = checkToken(req.token);
     if (auth) return out({ ok: false, error: auth });
     if (!req.sheetId) return out({ ok: false, error: 'Falta o link da folha (Definições da app).' });
+    const allowed = checkSheet(String(req.sheetId));
+    if (allowed) return out({ ok: false, error: allowed });
 
     const ss = SpreadsheetApp.openById(req.sheetId);
     const sh = mainSheet(ss, req.gid);
@@ -77,6 +83,15 @@ function checkToken(token) {
   const saved = props.getProperty('TOKEN');
   if (!saved) { props.setProperty('TOKEN', String(token)); return null; }
   return saved === String(token) ? null : 'Token inválido.';
+}
+
+// Só as folhas autorizadas: a primeira usada fica registada; outras acrescentam-se à mão em
+// Definições do projeto → Propriedades do script → SHEETS (IDs separados por vírgulas).
+function checkSheet(id) {
+  const props = PropertiesService.getScriptProperties();
+  const list = (props.getProperty('SHEETS') || '').split(',').map(function (x) { return x.trim(); }).filter(String);
+  if (!list.length) { props.setProperty('SHEETS', id); return null; }
+  return list.indexOf(id) >= 0 ? null : 'Esta folha não está autorizada neste script. Acrescenta o ID em Propriedades do script → SHEETS.';
 }
 
 function mainSheet(ss, gid) {
