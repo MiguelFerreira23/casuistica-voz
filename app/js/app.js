@@ -6,7 +6,7 @@ import { allRecords as allStored, putRecord, deleteRecord, clearAll, newId, requ
 import { profiles, activeProfile, setActive, updateProfile, addProfile, removeProfile, belongsTo } from './profiles.js';
 import { sheet, editNote, showGuide } from './ui.js';
 import { HOWTO } from './howto.js';
-import { ping, upsert, parseSheetLink } from './gsheets.js';
+import { ping, upsert, parseSheetLink, scriptUrl } from './gsheets.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 // registos do destino ativo
@@ -639,7 +639,9 @@ const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = se
 function sheetInfo() {
   const link = activeProfile().gsSheet;
   const p = parseSheetLink(link);
-  $('#gs-sheet-info').innerHTML = !link ? '' : p ? `<span class="ok">Folha reconhecida</span>${p.gid ? ` · separador ${p.gid}` : ''}` : '<span class="err">Link não reconhecido</span>';
+  $('#gs-sheet-info').innerHTML = !link ? '' : p ? `<span class="ok">Folha reconhecida</span>${p.gid ? ` · separador ${p.gid}` : ''}.` : '<span class="err">Link da folha não reconhecido.</span>';
+  const u = activeProfile().gsUrl;
+  $('#gs-url-info').innerHTML = !u ? '' : scriptUrl(u) ? `<span class="ok">${/^https?:/i.test(u.trim()) ? 'URL' : 'ID'} do script reconhecido.</span>` : '<span class="err">URL ou ID do script não reconhecido.</span>';
 }
 
 function onProfileChange() {
@@ -805,7 +807,7 @@ function init() {
   for (const r of $$('input[name=mode]')) r.onchange = () => { updateProfile(activeProfile().id, { mode: r.value }); onProfileChange(); };
   const field = (id, key, after) => { $(id).oninput = (e) => { updateProfile(activeProfile().id, { [key]: e.target.value.trim() }); if (after) after(); }; };
   field('#gs-sheet', 'gsSheet', sheetInfo);
-  field('#gs-url', 'gsUrl');
+  field('#gs-url', 'gsUrl', sheetInfo);
   $('#gs-token').oninput = (e) => updateProfile(activeProfile().id, { gsToken: e.target.value });
   $('#btn-gs-token').onclick = () => {
     if (activeProfile().gsToken && !confirm('Substituir o token atual? Se já o usaste no script, terás de o apagar lá (Propriedades do script → TOKEN).')) return;

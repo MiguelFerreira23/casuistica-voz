@@ -3,15 +3,27 @@
 
 import { COLUMNS } from './schema.js';
 
+// Aceita o URL completo da app para a Web ou só o ID de implementação ("AKfycb…").
+// Devolve o URL /exec, ou null se não for reconhecido.
+export function scriptUrl(input) {
+  const v = String(input || '').trim();
+  if (!v) return null;
+  const m = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/([A-Za-z0-9_-]{20,})(?:\/(?:exec|dev))?\/?(?:[?#].*)?$/.exec(v);
+  if (m) return `https://script.google.com/${m[1]}/s/${m[2]}/exec`;
+  if (/^[A-Za-z0-9_-]{30,}$/.test(v)) return `https://script.google.com/macros/s/${v}/exec`;
+  return null;
+}
+
 async function post(cfg, body) {
-  if (!cfg.url) throw new Error('Falta o URL do Apps Script (Definições).');
+  const url = scriptUrl(cfg.url);
+  if (!url) throw new Error(cfg.url ? 'O URL ou ID do Apps Script não foi reconhecido.' : 'Falta o URL ou o ID do Apps Script (Definições).');
   // text/plain evita o pedido de "preflight" CORS, que o Apps Script não suporta
   const sheet = parseSheetLink(cfg.sheetLink);
   if (!sheet) throw new Error('Falta o link da Google Sheet (Definições).');
   if (!cfg.token || cfg.token.length < 8) throw new Error('O token tem de ter pelo menos 8 caracteres.');
   let res;
   try {
-    res = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ ...body, token: cfg.token, sheetId: sheet.id, gid: sheet.gid }), redirect: 'follow' });
+    res = await fetch(url, { method: 'POST', body: JSON.stringify({ ...body, token: cfg.token, sheetId: sheet.id, gid: sheet.gid }), redirect: 'follow' });
   } catch {
     throw new Error(navigator.onLine === false ? 'Sem rede' : 'Não foi possível contactar o Apps Script (URL errado ou sem rede).');
   }

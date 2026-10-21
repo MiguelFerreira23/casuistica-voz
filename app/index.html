@@ -154,14 +154,14 @@
         <div class="cells">
           <label class="cell stack"><span>Link da Google Sheet</span>
             <input id="gs-sheet" type="url" placeholder="https://docs.google.com/spreadsheets/d/…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-          <label class="cell stack"><span>URL do Apps Script (termina em /exec)</span>
-            <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+          <label class="cell stack"><span>URL da app para a Web ou ID de implementação</span>
+            <input id="gs-url" type="text" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec  ou  AKfycb…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
           <label class="cell stack"><span>Token (frase secreta, 8+ caracteres)</span>
             <input id="gs-token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
           <button id="btn-gs-token" class="cell action" type="button">Gerar um token forte</button>
           <button id="btn-gs-test" class="cell action strong" type="button">Testar ligação</button>
         </div>
-        <p class="group-f"><span id="gs-sheet-info"></span> <span id="gs-status"></span></p>
+        <p class="group-f"><span id="gs-sheet-info"></span> <span id="gs-url-info"></span> <span id="gs-status"></span></p>
         <details class="howto">
           <summary>Como configurar (5 minutos, no computador)</summary>
           <div id="howto-steps"></div>

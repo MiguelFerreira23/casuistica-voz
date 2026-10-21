@@ -134,3 +134,19 @@ test('doente crítico e termo logo após a etiqueta', () => {
   assert.equal(v.dur, '< 1h');
   assert.equal(v.diag, 'politrauma com TCE');
 });
+
+import { scriptUrl } from '../app/js/gsheets.js';
+
+test('URL ou ID do Apps Script', () => {
+  const id = 'AKfycbx' + 'A'.repeat(60);
+  const exec = `https://script.google.com/macros/s/${id}/exec`;
+  assert.equal(scriptUrl(id), exec);
+  assert.equal(scriptUrl(`  ${id}  `), exec);
+  assert.equal(scriptUrl(exec), exec);
+  assert.equal(scriptUrl(`https://script.google.com/macros/s/${id}/dev`), exec);
+  assert.equal(scriptUrl(`https://script.google.com/macros/s/${id}`), exec);
+  assert.equal(scriptUrl(`https://script.google.com/a/macros/hospital.pt/s/${id}/exec?x=1`), `https://script.google.com/a/macros/hospital.pt/s/${id}/exec`);
+  assert.equal(scriptUrl('https://example.com/macros/s/abc/exec'), null);
+  assert.equal(scriptUrl('olá'), null);
+  assert.equal(scriptUrl(''), null);
+});

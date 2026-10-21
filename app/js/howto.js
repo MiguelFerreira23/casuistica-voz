@@ -18,7 +18,7 @@ export const HOWTO = `<ol>
     <p class="muted">“Qualquer pessoa” só permite <i>chamar</i> o endereço; ninguém vê a folha. O script recusa pedidos sem o teu token, só escreve nas folhas que autorizares e não devolve dados de doentes. É preciso porque o iPhone fala com o script sem a sessão Google.</p></li>
   <li>Carrega em <b>Autorizar acesso</b>, escolhe a tua conta e, no aviso “A Google não validou esta app”, carrega em <b>Avançadas → Aceder a … (não seguro)</b> e depois em <b>Permitir</b>. O aviso aparece em qualquer script pessoal.
     ${img('5-autorizar.jpg', 'Botão Autorizar acesso')}</li>
-  <li>Copia o <b>URL da app para a Web</b> (termina em <code>/exec</code>) e envia-o para o iPhone, por exemplo por email para ti próprio.</li>
+  <li>Copia o <b>URL da app para a Web</b> (termina em <code>/exec</code>) ou só o <b>ID de implementação</b>; a app aceita os dois. Envia-o para o iPhone, por exemplo por email para ti próprio.</li>
   <li>Aqui, em cima: cola o <b>link da Google Sheet</b> e o <b>URL</b>, carrega em <b>Gerar um token forte</b> e depois em <b>Testar ligação</b>.
     O primeiro token e a primeira folha testados ficam associados ao script.</li>
 </ol>
