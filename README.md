@@ -78,15 +78,19 @@ Como funciona:
 Configuração única do programador, já feita:
 - projeto Google Cloud `casuistica-por-voz`, na conta Google do programador, com a Google Sheets
   API ativa;
-- ecrã de autorização "Casuística por voz", em modo **teste**;
+- ecrã de autorização "Casuística por voz", **em produção** e sem verificação da Google, com
+  página inicial e [política de privacidade](https://miguelferreira23.github.io/casuistica-voz/privacidade.html);
 - ID de cliente OAuth "Aplicativo da Web" para `https://miguelferreira23.github.io` (e
   `http://localhost:8765` para testes). Está em `app/js/google.js`. Não é secreto: só funciona nessas
   origens.
 
-**Acrescentar utilizadores:** enquanto a app estiver em modo de teste, só entram as contas da lista de
-testadores, até 100. Para acrescentar uma, abre
-<https://console.cloud.google.com/auth/audience?project=casuistica-por-voz> com a conta
-do programador → **Usuários de teste → Add users**. A alteração demora alguns minutos a ficar ativa.
+**Quem pode usar:**
+- Qualquer conta Google consegue ligar-se, mas só escreve nas folhas onde tem permissão de edição.
+- Na primeira ligação aparece o aviso "A Google não validou esta app". Basta carregar em
+  **Avançadas → Continuar**.
+- Enquanto a app não for verificada pela Google, há um limite de **100 utilizadores** diferentes.
+- Para tirar o aviso e o limite, é preciso pedir a verificação em Google Auth Platform → Central de
+  verificação. Exige provar o domínio no Google Search Console e explicar o uso do acesso às folhas.
 
 **2. Apps Script (alternativa; precisa de um computador uma vez)**
 Configuração (uma vez, no computador). Os passos ilustrados com prints estão na própria app, em
