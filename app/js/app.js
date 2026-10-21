@@ -5,7 +5,7 @@ import { Recorder, transcribe, loadModel, onSttEvents, MODELS } from './stt.js';
 import { allRecords as allStored, putRecord, deleteRecord, clearAll, newId, requestPersistence, settings, getBaseFile, setBaseFile, clearBaseFile, putAudio, audiosOf, allAudios, deleteAudio, clearAudios, moveAudios } from './store.js';
 import { profiles, activeProfile, setActive, updateProfile, addProfile, removeProfile, belongsTo } from './profiles.js';
 import { sheet, editNote, showGuide } from './ui.js';
-import { HOWTO } from './howto.js';
+import { HOWTO, bindHowto } from './howto.js';
 import { ping, upsert, parseSheetLink, scriptUrl } from './gsheets.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -703,6 +703,7 @@ function openGuide() {
 
 function init() {
   $('#howto-steps').innerHTML = HOWTO;
+  bindHowto($('#howto-steps'), toast);
   buildForm();
   resetState();
 

@@ -340,3 +340,10 @@ select { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) { * { transition-duration: 0s !important; } }
 .cell.check .sub { display: block; font-size: 13px; color: var(--muted); }
+
+/* Código do script no guia */
+.code-actions { display: flex; gap: 8px; margin: 8px 0 0; flex-wrap: wrap; }
+.small-btn { font-size: 15px; padding: 9px 14px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); }
+.ghost-btn { background: var(--fill); color: var(--text); }
+.code { margin: 10px 0 0; padding: 10px 12px; max-height: 260px; overflow: auto; background: var(--bg); border-radius: 8px; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre; -webkit-user-select: text; user-select: text; }
+.howto-foot { margin: 0 16px 16px; }

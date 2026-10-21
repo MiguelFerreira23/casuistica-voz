@@ -24,7 +24,7 @@ já confirmada por ti, é enviada para a tua folha.
 
 - `Casuistica urgencia IVG - modelo.xlsx`: cópia do Excel sem dados de doentes, com as listas, as validações e as tabelas intactas.
 - `app/`: a aplicação. **Só esta pasta é publicada** e não contém dados de doentes.
-- `google-apps-script/Code.gs`: script para o modo Google Sheets.
+- `app/Code.gs`: script para o modo Google Sheets (a app permite copiá-lo diretamente).
 - `tests/parser.test.mjs`: testes do interpretador (`node --test tests/parser.test.mjs`).
 
 ## Publicação (GitHub Pages)
@@ -61,7 +61,7 @@ registo, a mesma linha é atualizada. Sem rede, o registo fica "por enviar" e se
 
 Configuração (uma vez, no computador). Os passos ilustrados com prints estão na própria app, em
 **Definições → Google Sheets → Como configurar**:
-1. Em <https://script.google.com>, cria um **Novo projeto** e cola `google-apps-script/Code.gs` tal como está.
+1. Em <https://script.google.com>, cria um **Novo projeto** e cola o código (na app: **Copiar o código**; ou `app/Code.gs`) tal como está.
 2. **Implementar → Nova implementação → App para a Web**, com "Executar como: **Eu**" e
    "Quem tem acesso: **Qualquer pessoa**".
 3. Clica em **Autorizar acesso**. No aviso "A Google não validou esta app", escolhe **Avançadas → Aceder**

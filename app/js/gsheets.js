@@ -1,4 +1,4 @@
-// Envio para Google Sheets através do Apps Script do utilizador (google-apps-script/Code.gs).
+// Envio para Google Sheets através do Apps Script do utilizador (app/Code.gs).
 // Só é enviada a linha final já validada; a interpretação do texto continua no dispositivo.
 
 import { COLUMNS } from './schema.js';
